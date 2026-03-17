@@ -1,5 +1,4 @@
 import hashlib
-import inspect
 import json
 import logging
 import os
@@ -62,6 +61,7 @@ vector_store: Optional[Chroma] = None
 SESSION_HISTORY: Dict[str, List[Tuple[str, str]]] = {}
 VECTOR_STORE_LOCK = Lock()
 SESSION_LOCK = Lock()
+CHATBOT_DATA_FORMAT = "messages"
 
 
 def _ensure_str(value: Any) -> str:
@@ -438,31 +438,41 @@ def build_safe_upload_filename(filename: str) -> str:
     return f"{safe_stem[:40]}_{uuid.uuid4().hex[:8]}{suffix}"
 
 
-def chatbot_supports_messages() -> bool:
-    try:
-        parameters = inspect.signature(gr.Chatbot.__init__).parameters
-        return "type" in parameters
-    except (TypeError, ValueError):
-        return False
+def get_chatbot_data_format() -> str:
+    return CHATBOT_DATA_FORMAT
 
 
 def create_chatbot_component():
-    if chatbot_supports_messages():
-        return gr.Chatbot(height=500, type="messages")
-    logger.warning("⚠️ 当前 Gradio 版本不支持 Chatbot(type='messages')，将回退到兼容模式")
-    return gr.Chatbot(height=500)
+    global CHATBOT_DATA_FORMAT
+
+    try:
+        chatbot = gr.Chatbot(height=500, type="messages")
+        CHATBOT_DATA_FORMAT = "messages"
+        logger.info("✅ 当前 Gradio 使用 messages 聊天格式")
+        return chatbot
+    except TypeError:
+        logger.warning("⚠️ 当前 Gradio 版本不支持显式传入 Chatbot(type='messages')，将回退到自动兼容模式")
+
+    chatbot = gr.Chatbot(height=500)
+    component_format = getattr(chatbot, "type", None) or getattr(chatbot, "_type", None)
+    if component_format in {"messages", "tuples"}:
+        CHATBOT_DATA_FORMAT = component_format
+    else:
+        CHATBOT_DATA_FORMAT = "tuples"
+    logger.info(f"✅ 当前 Gradio 实际聊天格式：{CHATBOT_DATA_FORMAT}")
+    return chatbot
 
 
 def append_user_message_to_chat(chat_history, user_text: str):
     chat_history = chat_history or []
-    if chatbot_supports_messages():
+    if get_chatbot_data_format() == "messages":
         return chat_history + [{"role": "user", "content": user_text}]
     return chat_history + [(user_text, None)]
 
 
 def extract_latest_user_question(chat_history) -> str:
     chat_history = chat_history or []
-    if chatbot_supports_messages():
+    if get_chatbot_data_format() == "messages":
         for message in reversed(chat_history):
             if isinstance(message, dict) and message.get("role") == "user":
                 return _ensure_str(message.get("content", ""))
@@ -476,7 +486,7 @@ def extract_latest_user_question(chat_history) -> str:
 
 def append_assistant_message_to_chat(chat_history, answer: str):
     chat_history = chat_history or []
-    if chatbot_supports_messages():
+    if get_chatbot_data_format() == "messages":
         return chat_history + [{"role": "assistant", "content": answer}]
 
     if chat_history and isinstance(chat_history[-1], (list, tuple)) and len(chat_history[-1]) >= 1:
