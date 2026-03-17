@@ -1,4 +1,5 @@
 import hashlib
+import inspect
 import json
 import logging
 import os
@@ -206,8 +207,6 @@ def create_vector_store(
             embedding_function=embeddings,
             persist_directory=persist_dir,
         )
-        if hasattr(vs, "persist"):
-            vs.persist()
         save_manifest(docs_manifest or [])
         logger.info("✅ 空的校园知识库创建成功")
         return vs
@@ -220,8 +219,6 @@ def create_vector_store(
         embedding=embeddings,
         persist_directory=persist_dir,
     )
-    if hasattr(vs, "persist"):
-        vs.persist()
     save_manifest(docs_manifest or [])
     logger.info(f"✅ 校园知识库创建成功，共存储 {len(split_docs)} 个文档片段")
     return vs
@@ -441,6 +438,56 @@ def build_safe_upload_filename(filename: str) -> str:
     return f"{safe_stem[:40]}_{uuid.uuid4().hex[:8]}{suffix}"
 
 
+def chatbot_supports_messages() -> bool:
+    try:
+        parameters = inspect.signature(gr.Chatbot.__init__).parameters
+        return "type" in parameters
+    except (TypeError, ValueError):
+        return False
+
+
+def create_chatbot_component():
+    if chatbot_supports_messages():
+        return gr.Chatbot(height=500, type="messages")
+    logger.warning("⚠️ 当前 Gradio 版本不支持 Chatbot(type='messages')，将回退到兼容模式")
+    return gr.Chatbot(height=500)
+
+
+def append_user_message_to_chat(chat_history, user_text: str):
+    chat_history = chat_history or []
+    if chatbot_supports_messages():
+        return chat_history + [{"role": "user", "content": user_text}]
+    return chat_history + [(user_text, None)]
+
+
+def extract_latest_user_question(chat_history) -> str:
+    chat_history = chat_history or []
+    if chatbot_supports_messages():
+        for message in reversed(chat_history):
+            if isinstance(message, dict) and message.get("role") == "user":
+                return _ensure_str(message.get("content", ""))
+        return ""
+
+    for item in reversed(chat_history):
+        if isinstance(item, (list, tuple)) and len(item) >= 1:
+            return _ensure_str(item[0])
+    return ""
+
+
+def append_assistant_message_to_chat(chat_history, answer: str):
+    chat_history = chat_history or []
+    if chatbot_supports_messages():
+        return chat_history + [{"role": "assistant", "content": answer}]
+
+    if chat_history and isinstance(chat_history[-1], (list, tuple)) and len(chat_history[-1]) >= 1:
+        last_user_text = _ensure_str(chat_history[-1][0])
+        updated_history = list(chat_history[:-1])
+        updated_history.append((last_user_text, answer))
+        return updated_history
+
+    return chat_history + [("", answer)]
+
+
 # ===================== Gradio UI =====================
 def create_gradio_ui():
     with gr.Blocks(title="浙科大校园智能问答助手") as demo:
@@ -451,7 +498,7 @@ def create_gradio_ui():
 """.strip()
         )
 
-        chatbot = gr.Chatbot(height=500, type="messages")
+        chatbot = create_chatbot_component()
         msg = gr.Textbox(label="你的问题", placeholder="比如：图书馆开放时间是什么时候？")
         clear_btn = gr.Button("清除对话")
 
@@ -462,34 +509,28 @@ def create_gradio_ui():
             upload_status = gr.Textbox(label="上传状态", interactive=False)
 
         def user_input_handler(question, chat_history):
-            chat_history = chat_history or []
             user_text = _ensure_str(question)
             if not user_text:
-                return "", chat_history
-            return "", chat_history + [{"role": "user", "content": user_text}]
+                return "", chat_history or []
+            return "", append_user_message_to_chat(chat_history, user_text)
 
         def bot_response_handler(chat_history):
             chat_history = chat_history or []
             if not chat_history:
                 return chat_history
 
-            question = ""
-            for message in reversed(chat_history):
-                if isinstance(message, dict) and message.get("role") == "user":
-                    question = _ensure_str(message.get("content", ""))
-                    break
-
+            question = extract_latest_user_question(chat_history)
             if not question:
                 return chat_history
 
             try:
                 answer, sources = rag_answer(question, session_id="default")
-                chat_history = chat_history + [{"role": "assistant", "content": answer}]
+                chat_history = append_assistant_message_to_chat(chat_history, answer)
                 logger.info(f"🔍 回答来源文档：{sources}")
                 return chat_history
             except Exception as exc:
                 logger.exception("❌ 回答失败（这里会打印完整堆栈）")
-                chat_history = chat_history + [{"role": "assistant", "content": f"😔 回答失败：{str(exc)}"}]
+                chat_history = append_assistant_message_to_chat(chat_history, f"😔 回答失败：{str(exc)}")
                 return chat_history
 
         def upload_docs_handler(files):
