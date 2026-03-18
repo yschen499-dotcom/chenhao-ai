@@ -6,7 +6,8 @@ from docx.oxml.ns import qn
 from docx.shared import Pt
 
 
-OUTPUT_PATH = Path("/workspace/thesis/zust_undergraduate_thesis_template.docx")
+BASE_DIR = Path(__file__).resolve().parent
+OUTPUT_PATH = BASE_DIR / "zust_undergraduate_thesis_template.docx"
 
 
 def set_run_font(run, size=12, bold=False):
@@ -224,6 +225,7 @@ def main():
     build_acknowledgement(document)
     build_references(document)
     build_appendices(document)
+    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     document.save(OUTPUT_PATH)
     print(f"Generated: {OUTPUT_PATH}")
 
