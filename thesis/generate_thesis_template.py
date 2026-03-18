@@ -1,49 +1,172 @@
 from pathlib import Path
 
 from docx import Document
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.section import WD_SECTION_START
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_PARAGRAPH_ALIGNMENT
+from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Pt
+from docx.shared import Cm, Pt
 
 
 BASE_DIR = Path(__file__).resolve().parent
 OUTPUT_PATH = BASE_DIR / "zust_undergraduate_thesis_template.docx"
+HEADER_TEXT = "浙江科技大学计算机科学与技术学院    2026 届本科毕业设计（论文）"
 
 
-def set_run_font(run, size=12, bold=False):
-    run.font.name = "Times New Roman"
-    run._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
+def set_run_font(run, size=12, bold=False, east_asia_font="宋体", ascii_font="Times New Roman"):
+    run.font.name = ascii_font
+    run._element.rPr.rFonts.set(qn("w:eastAsia"), east_asia_font)
     run.font.size = Pt(size)
     run.bold = bold
+
+
+def configure_document(document):
+    section = document.sections[0]
+    set_section_page_layout(section)
+    normal_style = document.styles["Normal"]
+    normal_style.font.name = "Times New Roman"
+    normal_style._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
+    normal_style.font.size = Pt(12)
+
+    for style_name in ("Heading 1", "Heading 2", "Heading 3"):
+        style = document.styles[style_name]
+        style.font.name = "Times New Roman"
+        style._element.rPr.rFonts.set(qn("w:eastAsia"), "黑体")
+        style.font.bold = True
+        if style_name == "Heading 1":
+            style.font.size = Pt(16)
+        elif style_name == "Heading 2":
+            style.font.size = Pt(14)
+        else:
+            style.font.size = Pt(12)
+
+
+def set_section_page_layout(section):
+    section.top_margin = Cm(2.5)
+    section.bottom_margin = Cm(2.5)
+    section.left_margin = Cm(3.0)
+    section.right_margin = Cm(2.5)
+    section.header_distance = Cm(1.5)
+    section.footer_distance = Cm(1.5)
+
+
+def set_section_page_number(section, start=1, fmt="decimal"):
+    sect_pr = section._sectPr
+    pg_num_types = sect_pr.xpath("./w:pgNumType")
+    if pg_num_types:
+        pg_num_type = pg_num_types[0]
+    else:
+        pg_num_type = OxmlElement("w:pgNumType")
+        sect_pr.append(pg_num_type)
+    pg_num_type.set(qn("w:start"), str(start))
+    pg_num_type.set(qn("w:fmt"), fmt)
+
+
+def add_page_field(paragraph):
+    run = paragraph.add_run()
+    set_run_font(run, size=12)
+    fld_char_begin = OxmlElement("w:fldChar")
+    fld_char_begin.set(qn("w:fldCharType"), "begin")
+
+    instr_text = OxmlElement("w:instrText")
+    instr_text.set(qn("xml:space"), "preserve")
+    instr_text.text = "PAGE"
+
+    fld_char_separate = OxmlElement("w:fldChar")
+    fld_char_separate.set(qn("w:fldCharType"), "separate")
+
+    fld_char_end = OxmlElement("w:fldChar")
+    fld_char_end.set(qn("w:fldCharType"), "end")
+
+    run._r.append(fld_char_begin)
+    run._r.append(instr_text)
+    run._r.append(fld_char_separate)
+    run._r.append(fld_char_end)
+
+
+def configure_header_footer(section, show_header_footer=True):
+    section.header.is_linked_to_previous = False
+    section.footer.is_linked_to_previous = False
+
+    header = section.header
+    footer = section.footer
+    header.paragraphs[0].clear()
+    footer.paragraphs[0].clear()
+
+    if not show_header_footer:
+        return
+
+    header_paragraph = header.paragraphs[0]
+    header_paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    header_run = header_paragraph.add_run(HEADER_TEXT)
+    set_run_font(header_run, size=10, east_asia_font="宋体")
+
+    footer_paragraph = footer.paragraphs[0]
+    footer_paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    left_run = footer_paragraph.add_run("- ")
+    set_run_font(left_run, size=10, east_asia_font="宋体")
+    add_page_field(footer_paragraph)
+    right_run = footer_paragraph.add_run(" -")
+    set_run_font(right_run, size=10, east_asia_font="宋体")
 
 
 def add_paragraph(document, text="", size=12, bold=False, align=WD_ALIGN_PARAGRAPH.LEFT):
     paragraph = document.add_paragraph()
     paragraph.alignment = align
+    paragraph.paragraph_format.line_spacing = 1.5
     run = paragraph.add_run(text)
     set_run_font(run, size=size, bold=bold)
     return paragraph
 
 
 def add_heading(document, text, level=1):
-    paragraph = document.add_paragraph()
+    paragraph = document.add_paragraph(style=f"Heading {level}")
+    paragraph.paragraph_format.line_spacing = 1.5
+    if level == 1:
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    else:
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
     run = paragraph.add_run(text)
-    set_run_font(run, size=16 if level == 1 else 14 if level == 2 else 12, bold=True)
+    set_run_font(run, size=16 if level == 1 else 14 if level == 2 else 12, bold=True, east_asia_font="黑体")
     return paragraph
 
 
 def add_placeholder_paragraph(document, text):
     paragraph = document.add_paragraph()
+    paragraph.paragraph_format.line_spacing = 1.5
+    paragraph.paragraph_format.first_line_indent = Cm(0.74)
     run = paragraph.add_run(text)
     set_run_font(run, size=12, bold=False)
     return paragraph
 
 
+def add_table_of_contents(document):
+    paragraph = document.add_paragraph()
+    paragraph.paragraph_format.line_spacing = 1.5
+    run = paragraph.add_run()
+    fld_char_begin = OxmlElement("w:fldChar")
+    fld_char_begin.set(qn("w:fldCharType"), "begin")
+    instr_text = OxmlElement("w:instrText")
+    instr_text.set(qn("xml:space"), "preserve")
+    instr_text.text = r'TOC \o "1-3" \h \z \u'
+    fld_char_separate = OxmlElement("w:fldChar")
+    fld_char_separate.set(qn("w:fldCharType"), "separate")
+    placeholder = OxmlElement("w:t")
+    placeholder.text = "请在 Word 中右键目录并选择“更新域”，自动生成目录。"
+    fld_char_end = OxmlElement("w:fldChar")
+    fld_char_end.set(qn("w:fldCharType"), "end")
+    run._r.append(fld_char_begin)
+    run._r.append(instr_text)
+    run._r.append(fld_char_separate)
+    run._r.append(placeholder)
+    run._r.append(fld_char_end)
+
+
 def build_cover(document):
     for _ in range(4):
         add_paragraph(document, "")
-    add_paragraph(document, "浙江科技学院计算机学院", size=16, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER)
-    add_paragraph(document, "本科生毕业设计（论文）", size=18, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER)
+    add_paragraph(document, "浙江科技大学计算机科学与技术学院", size=16, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER)
+    add_paragraph(document, "本科毕业设计（论文）", size=18, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER)
     add_paragraph(document, "")
     add_paragraph(document, "论文题目：校园智能问答助手设计与实现", size=16, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER)
     add_paragraph(document, "")
@@ -63,7 +186,7 @@ def build_abstract_pages(document):
     )
     add_placeholder_paragraph(
         document,
-        "【摘要占位】本课题面向浙江科技学院校园服务场景，设计并实现了一套基于大模型与本地知识库的校园智能问答助手。系统围绕校园问答中信息分散、检索效率不足和回答自然度不高等问题，完成了知识库构建、查询改写、检索增强、结构化回答与模块化重构等核心功能设计。实验结果表明，该系统能够在图书馆开放时间、学籍管理、奖学金申请等典型校园问题上提供较为准确、自然且具有一定上下文理解能力的回答。该研究为校园服务智能化提供了一种可行实现方案。",
+        "【摘要占位】本课题面向浙江科技大学校园服务场景，设计并实现了一套基于大模型与本地知识库的校园智能问答助手。系统围绕校园问答中信息分散、检索效率不足和回答自然度不高等问题，完成了知识库构建、查询改写、检索增强、结构化回答与模块化重构等核心功能设计。实验结果表明，该系统能够在图书馆开放时间、学籍管理、奖学金申请等典型校园问题上提供较为准确、自然且具有一定上下文理解能力的回答。该研究为校园服务智能化提供了一种可行实现方案。",
     )
     add_placeholder_paragraph(document, "关键词：校园问答助手；大语言模型；知识库问答；查询改写；模块化设计")
     document.add_page_break()
@@ -83,22 +206,7 @@ def build_abstract_pages(document):
 
 def build_toc_page(document):
     add_heading(document, "目录", level=1)
-    add_placeholder_paragraph(
-        document,
-        "【目录生成提示】请在 Word 中使用“引用 -> 目录 -> 自动目录”生成，不要手工输入页码。目录应至少包含：中英文摘要、各章标题（最多到第三级标题）、致谢、参考文献、附录。",
-    )
-    add_placeholder_paragraph(document, "摘要")
-    add_placeholder_paragraph(document, "Abstract")
-    add_placeholder_paragraph(document, "第1章 引言")
-    add_placeholder_paragraph(document, "第2章 相关技术与理论基础")
-    add_placeholder_paragraph(document, "第3章 需求分析")
-    add_placeholder_paragraph(document, "第4章 系统总体设计")
-    add_placeholder_paragraph(document, "第5章 系统详细设计与实现")
-    add_placeholder_paragraph(document, "第6章 系统测试与结果分析")
-    add_placeholder_paragraph(document, "第7章 结束语")
-    add_placeholder_paragraph(document, "致谢")
-    add_placeholder_paragraph(document, "参考文献")
-    add_placeholder_paragraph(document, "附录1")
+    add_table_of_contents(document)
     document.add_page_break()
 
 
@@ -218,9 +326,21 @@ def build_appendices(document):
 
 def main():
     document = Document()
+    configure_document(document)
+    configure_header_footer(document.sections[0], show_header_footer=False)
     build_cover(document)
+
+    prelim_section = document.add_section(WD_SECTION_START.NEW_PAGE)
+    set_section_page_layout(prelim_section)
+    set_section_page_number(prelim_section, start=1, fmt="upperRoman")
+    configure_header_footer(prelim_section, show_header_footer=True)
     build_abstract_pages(document)
     build_toc_page(document)
+
+    body_section = document.add_section(WD_SECTION_START.NEW_PAGE)
+    set_section_page_layout(body_section)
+    set_section_page_number(body_section, start=1, fmt="decimal")
+    configure_header_footer(body_section, show_header_footer=True)
     build_body(document)
     build_acknowledgement(document)
     build_references(document)
