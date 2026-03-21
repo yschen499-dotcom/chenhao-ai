@@ -5,6 +5,7 @@
 ## 线上访问与二维码
 
 - GitHub Pages 目标地址：`https://yschen499-dotcom.github.io/test_dingdingtest_dingding/`
+- 仓库启用 GitHub Pages 后，工作流会自动把当前静态站发布到这个地址
 - 二维码图片：`assets/resume-qr.png`
 
 ## 文件结构
