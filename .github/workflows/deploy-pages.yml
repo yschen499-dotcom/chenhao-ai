@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - cursor/ai-ff73
   workflow_dispatch:
 
 permissions:
