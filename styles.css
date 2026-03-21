@@ -273,7 +273,8 @@ main {
 .feature-card,
 .capability-panel,
 .highlight-card,
-.roadmap-card {
+.roadmap-card,
+.project-card {
   border: 1px solid var(--line);
   background: var(--card);
   backdrop-filter: blur(18px);
@@ -512,9 +513,115 @@ main {
 
 .feature-card,
 .highlight-card,
-.roadmap-card {
+.roadmap-card,
+.project-card {
   border-radius: var(--radius-lg);
   padding: 24px;
+}
+
+.section-lead {
+  margin: 0;
+  max-width: 920px;
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.75;
+}
+
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  align-items: stretch;
+}
+
+.project-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.project-card--main {
+  padding: 28px;
+}
+
+.project-badge {
+  align-self: flex-start;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--primary);
+  border: 1px solid rgba(125, 104, 232, 0.25);
+  background: rgba(125, 104, 232, 0.08);
+}
+
+.project-card h3 {
+  margin: 0;
+  font-size: 1.28rem;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+}
+
+.project-lead {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.75;
+  font-size: 0.98rem;
+}
+
+.project-lead strong {
+  color: #4a4039;
+  font-weight: 600;
+}
+
+.project-list {
+  margin: 4px 0 0;
+  padding-left: 1.15rem;
+  color: var(--muted);
+  line-height: 1.75;
+  font-size: 0.95rem;
+}
+
+.project-list li + li {
+  margin-top: 10px;
+}
+
+.project-list strong {
+  color: #4a4039;
+  font-weight: 600;
+}
+
+.project-list code {
+  font-size: 0.88em;
+  padding: 0.12em 0.45em;
+  border-radius: 6px;
+  background: rgba(125, 104, 232, 0.1);
+  border: 1px solid rgba(125, 104, 232, 0.15);
+}
+
+.project-stack-label {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.project-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.project-stack span {
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  border: 1px solid var(--line);
+  color: #4f433b;
+  background: rgba(255, 255, 255, 0.55);
 }
 
 .feature-index {
@@ -788,6 +895,7 @@ main {
   .feature-grid,
   .highlight-grid,
   .roadmap,
+  .projects-grid,
   .contact-grid {
     grid-template-columns: 1fr;
   }

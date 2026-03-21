@@ -1,4 +1,4 @@
-const keywords = ["系统基础", "嵌入式方向", "C/C++", "学习执行力", "AI 时代表达"];
+const keywords = ["RAG 与知识库", "LLM 接入与对话", "Python 工程交付", "钉钉 Bot", "AI 应用工程"];
 const keywordNode = document.getElementById("keyword-rotator");
 const revealNodes = document.querySelectorAll(".reveal");
 const navLinks = document.querySelectorAll(".site-nav a");
