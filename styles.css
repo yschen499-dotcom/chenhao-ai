@@ -350,7 +350,8 @@ main {
 .feature-grid,
 .highlight-grid,
 .roadmap,
-.contact-grid {
+.contact-grid,
+.contact-side {
   display: grid;
   gap: 16px;
 }
@@ -552,12 +553,59 @@ main {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.contact-side {
+  align-content: start;
+}
+
 .contact-grid a,
 .contact-grid div {
   padding: 20px;
   border-radius: var(--radius-lg);
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
+}
+
+.qr-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 18px;
+  padding: 20px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.qr-copy h3 {
+  margin: 10px 0 0;
+  font-size: 1.15rem;
+}
+
+.qr-copy p {
+  margin: 12px 0 0;
+  color: var(--muted);
+  line-height: 1.75;
+}
+
+.qr-link {
+  margin-top: 16px;
+  min-width: 0;
+}
+
+.qr-code-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.qr-code-card img {
+  display: block;
+  width: 100%;
+  max-width: 156px;
+  height: auto;
+  border-radius: 12px;
 }
 
 .contact-copy {
@@ -622,6 +670,14 @@ main {
   .roadmap,
   .contact-grid {
     grid-template-columns: 1fr;
+  }
+
+  .qr-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .qr-code-card {
+    max-width: 220px;
   }
 
   .contact-card {
