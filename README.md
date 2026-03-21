@@ -7,12 +7,15 @@
 - GitHub Pages 目标地址：`https://yschen499-dotcom.github.io/test_dingdingtest_dingding/`
 - 仓库启用 GitHub Pages 后，工作流会自动把当前静态站发布到这个地址
 - 二维码图片：`assets/resume-qr.png`
+- PDF 简历文件：`assets/chenhao-ai-application-resume.pdf`
 
 ## 文件结构
 
 - `index.html`：页面结构与内容
 - `styles.css`：视觉样式与响应式布局
 - `script.js`：滚动动效、导航高亮、关键词轮播
+- `resume-pdf.html`：A4 排版的 PDF 简历页面
+- `resume-pdf.css`：PDF 简历样式
 - `.github/workflows/deploy-pages.yml`：自动部署到 GitHub Pages
 
 ## 本地预览
@@ -24,6 +27,14 @@ python3 -m http.server 8000
 ```
 
 然后访问 `http://localhost:8000`
+
+## 重新生成 PDF
+
+仓库根目录执行：
+
+```bash
+google-chrome --headless --disable-gpu --no-sandbox --allow-file-access-from-files --print-to-pdf="assets/chenhao-ai-application-resume.pdf" "file:///workspace/resume-pdf.html"
+```
 
 ## 后续可继续升级
 
