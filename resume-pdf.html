@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>陈浩 | AI应用方向 PDF 简历</title>
+  <link rel="stylesheet" href="resume-pdf.css">
+</head>
+<body>
+  <main class="resume-document">
+    <section class="page">
+      <header class="resume-header">
+        <div>
+          <p class="eyebrow">AI APPLICATION RESUME</p>
+          <h1>陈浩</h1>
+          <p class="headline">AI应用方向 / 个人简历与作品摘要</p>
+          <p class="summary">
+            关注 AI 应用工程：大模型接入、RAG 检索增强、对话体验、提示词与回答约束，
+            以及 Bot 运行时的安全与稳定性。希望将技术基础、真实实践和自研项目整合成可快速评估匹配度的工程画像。
+          </p>
+        </div>
+
+        <aside class="contact-panel">
+          <div class="contact-item">
+            <span>电话</span>
+            <strong>150-5778-5357</strong>
+          </div>
+          <div class="contact-item">
+            <span>邮箱</span>
+            <strong>934183207@qq.com</strong>
+          </div>
+          <div class="contact-item">
+            <span>现居</span>
+            <strong>浙江杭州</strong>
+          </div>
+          <div class="contact-item">
+            <span>出生年月</span>
+            <strong>2004.08</strong>
+          </div>
+          <div class="contact-item contact-link">
+            <span>网页版</span>
+            <strong>yschen499-dotcom.github.io/test_dingdingtest_dingding/</strong>
+          </div>
+        </aside>
+      </header>
+
+      <section class="section">
+        <div class="section-title-row">
+          <h2>教育背景</h2>
+          <span>Education</span>
+        </div>
+        <article class="entry-card">
+          <div class="entry-head">
+            <h3>浙江科技大学 · 计算机科学与技术（本科）</h3>
+            <span>2022.09 - 2026.06</span>
+          </div>
+          <p>
+            主修课程包括计算机网络、计算机系统安全、计算机组成与系统结构、操作系统原理。
+            目前持续将系统基础能力向 AI 应用工程和真实业务场景落地方向迁移。
+          </p>
+        </article>
+      </section>
+
+      <section class="two-column">
+        <div class="column">
+          <section class="section">
+            <div class="section-title-row">
+              <h2>技能图谱</h2>
+              <span>Skills</span>
+            </div>
+            <div class="tag-grid">
+              <span>Python</span>
+              <span>RAG / 知识库</span>
+              <span>LLM 接入</span>
+              <span>Prompt 设计</span>
+              <span>Gradio</span>
+              <span>Chroma</span>
+              <span>asyncio</span>
+              <span>钉钉 Bot</span>
+              <span>C / C++</span>
+              <span>Java</span>
+              <span>数据结构</span>
+              <span>操作系统</span>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-title-row">
+              <h2>证书与荣誉</h2>
+              <span>Certificates</span>
+            </div>
+            <ul class="bullet-list">
+              <li>英语四级 504 / 六级 410，普通话二级甲等</li>
+              <li>优秀学生干部、优良学风奖、卡尔马克思杯二等奖</li>
+              <li>连续四年担任学习委员，绩点排名前 30%</li>
+            </ul>
+          </section>
+        </div>
+
+        <div class="column">
+          <section class="section">
+            <div class="section-title-row">
+              <h2>实习经历</h2>
+              <span>Internships</span>
+            </div>
+            <article class="entry-card compact">
+              <div class="entry-head">
+                <h3>杭州地铁 · 实习经历</h3>
+                <span>2025.07 - 2025.12</span>
+              </div>
+              <p>
+                学习蓝凌智能化办公系统的底层逻辑与运用，协助信息主管维护办公系统，
+                理解系统稳定性、流程协同与信息化支持工作。
+              </p>
+            </article>
+            <article class="entry-card compact">
+              <div class="entry-head">
+                <h3>国家电网 · 实习经历</h3>
+                <span>2024.07 - 2024.09</span>
+              </div>
+              <p>
+                协助 PHP 工程师完成部分模块代码编写，并参与技术文档整理与代码注释，
+                积累了真实协作场景下的开发配合与文档表达能力。
+              </p>
+            </article>
+          </section>
+        </div>
+      </section>
+    </section>
+
+    <section class="page">
+      <section class="section">
+        <div class="section-title-row">
+          <h2>自研项目</h2>
+          <span>Projects</span>
+        </div>
+
+        <article class="project-card">
+          <div class="entry-head">
+            <h3>浙科大校园智能问答助手 v3（campus_assistant_v3）</h3>
+            <span>RAG / 校园知识库</span>
+          </div>
+          <p class="project-summary">
+            基于通义千问（DashScope）与 Chroma 向量库的校园专属问答系统，支持多格式文档入库、
+            对话问答、上下文清空与面向师生口吻自然输出。
+          </p>
+          <ul class="bullet-list">
+            <li>Gradio 搭建主界面，支持 PDF / TXT / MD 批量上传并刷新向量库。</li>
+            <li>查询理解模块生成检索计划，可选查询改写后执行双路检索并做去重合并。</li>
+            <li>结合问题类型切换提示词与回答风格，限制胡编并要求资料不足时明确说明。</li>
+            <li>服务层串联初始化、问答、上传；子模块按 retrieval / answering / query understanding 等拆分，便于维护迭代。</li>
+          </ul>
+          <p class="stack-line">
+            <strong>技术栈：</strong>Python / Gradio / Chroma / DashScope / 向量嵌入
+          </p>
+        </article>
+
+        <article class="project-card">
+          <div class="entry-head">
+            <h3>钉钉 Stream 本地指令机器人（dingtalk_agent）</h3>
+            <span>Bot / 自动化入口</span>
+          </div>
+          <p class="project-summary">
+            基于钉钉 Stream 长连接的群聊 / 单聊机器人，在收到指定指令时以白名单、超时和输出截断策略执行本机命令，
+            用于个人自动化与运维辅助实验。
+          </p>
+          <ul class="bullet-list">
+            <li>注册 Chatbot 与 Delegate 两类 topic，兼容不同投递路径，解析文本识别 ping 与 run: 指令。</li>
+            <li>仅允许配置中的命令前缀，subprocess 带超时与退出码回传，回复长度上限可配。</li>
+            <li>启动前校验 AppKey / AppSecret，Windows 下调整事件循环策略缓解 WebSocket 不稳定问题，外层循环支持自动重连。</li>
+            <li>轻量 .env 配置方式，日志级别与允许前缀均可通过环境变量调整。</li>
+          </ul>
+          <p class="stack-line">
+            <strong>技术栈：</strong>Python / asyncio / dingtalk-stream / 钉钉开放平台
+          </p>
+        </article>
+      </section>
+
+      <section class="section bottom-grid">
+        <div>
+          <div class="section-title-row">
+            <h2>校园经历</h2>
+            <span>Campus</span>
+          </div>
+          <ul class="bullet-list">
+            <li>连续四年获得“优秀学生干部”，连续四年担任学习委员。</li>
+            <li>参加安吉县中小学科技节志愿活动、校运动会红旗方阵。</li>
+            <li>作为入党积极分子，持续提升责任感与组织协作能力。</li>
+          </ul>
+        </div>
+
+        <div>
+          <div class="section-title-row">
+            <h2>个人特点</h2>
+            <span>Profile</span>
+          </div>
+          <ul class="bullet-list">
+            <li>能把系统基础和工程落地结合起来理解问题。</li>
+            <li>对 AI 应用项目中的检索、对话、安全边界与稳定性有明确关注。</li>
+            <li>愿意持续学习并将 Demo 打磨成更可用、更可维护的产品形态。</li>
+          </ul>
+        </div>
+      </section>
+    </section>
+  </main>
+</body>
+</html>
