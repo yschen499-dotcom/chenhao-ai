@@ -105,6 +105,12 @@ main {
   gap: 24px;
 }
 
+.header-tools {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
 .brand-mark {
   display: inline-flex;
   align-items: center;
@@ -143,6 +149,36 @@ main {
 .site-nav a.active,
 .site-nav a:hover {
   color: var(--text);
+}
+
+.lang-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: 0 10px 26px rgba(148, 115, 97, 0.08);
+}
+
+.lang-toggle__button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  min-width: 46px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.lang-toggle__button.is-active {
+  color: #fffdfb;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  box-shadow: 0 10px 20px rgba(176, 108, 143, 0.18);
 }
 
 main {
@@ -890,10 +926,20 @@ main {
     align-items: flex-start;
   }
 
+  .header-tools {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .site-nav {
     width: 100%;
     overflow-x: auto;
     justify-content: flex-start;
+  }
+
+  .lang-toggle {
+    align-self: flex-start;
   }
 
   main {

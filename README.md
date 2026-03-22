@@ -6,8 +6,9 @@
 
 - GitHub Pages 目标地址：`https://yschen499-dotcom.github.io/chenhao-ai/`
 - 仓库启用 GitHub Pages 后，工作流会自动把当前静态站发布到这个地址
-- 二维码图片：`assets/resume-qr.png`
-- PDF 简历文件：`assets/chenhao-ai-application-resume.pdf`
+- 二维码图片：`assets/chenhao-ai-portfolio-qr.png`
+- 分享封面图：`assets/chenhao-ai-portfolio-cover.png`
+- PDF 简历文件：`assets/chenhao-ai-portfolio-resume.pdf`
 - 证件照占位文件：`assets/profile-photo.png`（后续可直接替换成原始证件照）
 
 ## 文件结构
@@ -34,7 +35,7 @@ python3 -m http.server 8000
 仓库根目录执行：
 
 ```bash
-google-chrome --headless --disable-gpu --no-sandbox --allow-file-access-from-files --print-to-pdf="assets/chenhao-ai-application-resume.pdf" "file:///workspace/resume-pdf.html"
+google-chrome --headless --disable-gpu --no-sandbox --allow-file-access-from-files --print-to-pdf="assets/chenhao-ai-portfolio-resume.pdf" "file:///workspace/resume-pdf.html"
 ```
 
 ## 后续可继续升级
