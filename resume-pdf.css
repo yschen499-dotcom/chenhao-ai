@@ -59,6 +59,10 @@ body {
   border-bottom: 1px solid var(--line);
 }
 
+.resume-intro {
+  align-self: start;
+}
+
 .eyebrow {
   margin: 0 0 3mm;
   color: var(--primary);
@@ -96,6 +100,21 @@ h1 {
   border: 1px solid var(--line);
   border-radius: 5mm;
   background: rgba(255, 248, 244, 0.9);
+}
+
+.pdf-photo-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 2mm;
+}
+
+.pdf-photo {
+  width: 34mm;
+  height: 44mm;
+  object-fit: cover;
+  border-radius: 4mm;
+  border: 1px solid var(--line);
+  background: linear-gradient(145deg, rgba(239, 178, 194, 0.18), rgba(111, 89, 216, 0.12));
 }
 
 .contact-item span,

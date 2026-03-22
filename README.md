@@ -8,6 +8,7 @@
 - 仓库启用 GitHub Pages 后，工作流会自动把当前静态站发布到这个地址
 - 二维码图片：`assets/resume-qr.png`
 - PDF 简历文件：`assets/chenhao-ai-application-resume.pdf`
+- 证件照占位文件：`assets/profile-photo.png`（后续可直接替换成原始证件照）
 
 ## 文件结构
 
