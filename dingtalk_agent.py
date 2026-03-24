@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 import os
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -12,17 +11,15 @@ import dingtalk_stream
 import requests
 from dingtalk_stream import AckMessage
 
+from app.config import LOG_LEVEL, MAX_REPLY_CHARS
+from app.monitor import MonitorService
+from app.router import CommandRouter
+from app.storage import Storage
+
 
 BASE_DIR = Path(__file__).resolve().parent
 ENV_FILE = os.getenv("DINGTALK_AGENT_ENV_FILE", ".env.dingtalk_agent")
 ENV_PATH = BASE_DIR / ENV_FILE
-MAX_REPLY_CHARS = int(os.getenv("AGENT_MAX_REPLY_CHARS", "3000"))
-LOG_LEVEL = os.getenv("DINGTALK_AGENT_LOG_LEVEL", "INFO").upper()
-ALLOWED_PREFIXES = tuple(
-    p.strip()
-    for p in os.getenv("AGENT_ALLOWED_CMD_PREFIXES", "python,python3,py,pytest,dir,echo").split(",")
-    if p.strip()
-)
 
 
 def _load_env():
@@ -56,42 +53,6 @@ def _truncate(s: str) -> str:
         return s
     return s[: MAX_REPLY_CHARS - 20] + "\n...(truncated)..."
 
-
-def _run_command(cmd: str) -> str:
-    cmd = cmd.strip()
-    if not cmd:
-        return "Empty command."
-
-    first = cmd.split()[0].lower()
-    if first not in {p.lower() for p in ALLOWED_PREFIXES}:
-        return f"Blocked. Allowed command prefixes: {', '.join(ALLOWED_PREFIXES)}"
-
-    try:
-        cp = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=120)
-        out = (cp.stdout or "") + (("\n" + cp.stderr) if cp.stderr else "")
-        out = out.strip() or "(no output)"
-        return f"exit_code={cp.returncode}\n{out}"
-    except subprocess.TimeoutExpired:
-        return "Command timed out (120s)."
-    except Exception as e:
-        return f"Command failed: {e!r}"
-
-
-def _parse_instruction(text: str) -> Optional[str]:
-    t = (text or "").strip()
-    if not t:
-        return None
-
-    lower = t.lower()
-    if "ping" in lower:
-        return "pong"
-    if "run:" in lower:
-        idx = lower.index("run:")
-        cmd = t[idx + 4 :].strip()
-        return _run_command(cmd)
-    return None
-
-
 def _preview_json(data, limit: int = 800) -> str:
     try:
         text = json.dumps(data, ensure_ascii=False, sort_keys=True)
@@ -102,7 +63,11 @@ def _preview_json(data, limit: int = 800) -> str:
     return text[: limit - 20] + "...(truncated)..."
 
 
-class LocalCommandBotHandler(dingtalk_stream.ChatbotHandler):
+class InternalTestBotHandler(dingtalk_stream.ChatbotHandler):
+    def __init__(self, router: CommandRouter):
+        super().__init__()
+        self.router = router
+
     async def process(self, callback: dingtalk_stream.CallbackMessage):
         try:
             logging.info(
@@ -123,7 +88,7 @@ class LocalCommandBotHandler(dingtalk_stream.ChatbotHandler):
                 getattr(incoming, "sender_staff_id", None),
             )
 
-            reply = _parse_instruction(text)
+            reply = self.router.handle_text(text)
             if reply is not None:
                 logging.info("Replying with %d chars", len(reply))
                 self.reply_text(_truncate(reply), incoming)
@@ -203,12 +168,16 @@ def main():
     logging.info("Starting DingTalk Stream bot...")
     logging.info("ENV file: %s", ENV_PATH)
     logging.info("Log level: %s", LOG_LEVEL)
-    logging.info("Allowed command prefixes: %s", ", ".join(ALLOWED_PREFIXES))
     _validate_stream_credentials(client_id, client_secret)
 
     # Windows fix: avoid ProactorEventLoop + websockets instability (InvalidStateError/EOFError).
     if sys.platform.startswith("win"):
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+    storage = Storage()
+    monitor = MonitorService(storage)
+    router = CommandRouter(storage=storage, scan_callback=monitor.scan_once)
+    logging.info("Internal test command set ready: help/status/watchlist/add/remove/scan/test alert")
 
     while True:
         try:
@@ -218,7 +187,7 @@ def main():
 
             credential = dingtalk_stream.Credential(client_id, client_secret)
             client = dingtalk_stream.DingTalkStreamClient(credential)
-            handler = LocalCommandBotHandler()
+            handler = InternalTestBotHandler(router)
             chatbot_topic = dingtalk_stream.ChatbotMessage.TOPIC
             delegate_topic = dingtalk_stream.ChatbotMessage.DELEGATE_TOPIC
             client.register_callback_handler(chatbot_topic, handler)
