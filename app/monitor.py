@@ -23,15 +23,25 @@ class MonitorService:
 
     @staticmethod
     def _pick_primary_platform(platform_prices: list[PlatformPrice]) -> PlatformPrice:
-        priority = ["BUFF", "YOUPIN", "C5", "STEAM", "HALOSKINS"]
+        priority = ["YOUPIN", "BUFF", "C5", "STEAM", "HALOSKINS"]
         by_name = {row.platform.upper(): row for row in platform_prices}
         for name in priority:
             if name in by_name:
                 return by_name[name]
         return platform_prices[0]
 
-    def _format_platform_block(self, platform_prices: list[PlatformPrice]) -> list[str]:
-        wanted_order = ["BUFF", "YOUPIN", "C5"]
+    @staticmethod
+    def _format_delta_text(current_price: float, previous_price: float | None) -> str:
+        if previous_price is None or previous_price <= 0:
+            return "（较上次：暂无数据）"
+
+        delta = current_price - previous_price
+        pct = (delta / previous_price) * 100
+        arrow = "🔺" if delta > 0 else "🔻" if delta < 0 else "➖"
+        return f"（较上次：{arrow}¥{abs(delta):.2f} / {arrow}{abs(pct):.2f}%）"
+
+    def _format_platform_block(self, item_name: str, platform_prices: list[PlatformPrice]) -> list[str]:
+        wanted_order = ["YOUPIN", "BUFF", "C5"]
         by_name = {row.platform.upper(): row for row in platform_prices}
         lines: list[str] = []
 
@@ -40,9 +50,12 @@ class MonitorService:
             if row is None:
                 lines.append(f"  - {self._platform_label(platform)}：暂无数据")
                 continue
+            previous_snapshot = self.storage.previous_price_snapshot(item_name, platform)
+            previous_price = float(previous_snapshot["price"]) if previous_snapshot else None
             lines.append(
                 f"  - {self._platform_label(platform)}：在售价 ¥{row.sell_price:.2f}"
-                f" | 求购价 ¥{row.bidding_price:.2f} | 在售 {row.sell_count}"
+                f" | 求购价 ¥{row.bidding_price:.2f} | 在售 {row.sell_count} "
+                f"{self._format_delta_text(row.sell_price, previous_price)}"
             )
 
         return lines
@@ -62,12 +75,13 @@ class MonitorService:
             try:
                 collected = self.collector.fetch_single_price(item_name)
                 primary = self._pick_primary_platform(collected.platform_prices)
-                self.storage.save_price_snapshot(
-                    item_name=collected.item_name,
-                    price=primary.sell_price,
-                    volume=float(primary.sell_count),
-                    source=primary.platform,
-                )
+                for platform_row in collected.platform_prices:
+                    self.storage.save_price_snapshot(
+                        item_name=collected.item_name,
+                        price=platform_row.sell_price,
+                        volume=float(platform_row.sell_count),
+                        source=platform_row.platform,
+                    )
                 success_rows.append(collected)
             except Exception as exc:
                 logging.exception("Failed to collect price for item=%r", item_name)
@@ -93,7 +107,7 @@ class MonitorService:
             lines.append("- 最新价格：")
             for row in success_rows[:5]:
                 lines.append(f"  * {row.item_name}")
-                lines.extend(self._format_platform_block(row.platform_prices))
+                lines.extend(self._format_platform_block(row.item_name, row.platform_prices))
 
         if failed_rows:
             lines.append("- 失败项：")

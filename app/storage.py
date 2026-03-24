@@ -171,6 +171,32 @@ class Storage:
                 (item_name, price, volume, source, _utcnow()),
             )
 
+    def previous_price_snapshot(self, item_name: str, source: Optional[str] = None):
+        with self._connect() as conn:
+            if source:
+                row = conn.execute(
+                    """
+                    SELECT item_name, price, volume, source, captured_at
+                    FROM price_snapshots
+                    WHERE item_name = ? AND source = ?
+                    ORDER BY id DESC
+                    LIMIT 1 OFFSET 1
+                    """,
+                    (item_name, source),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    """
+                    SELECT item_name, price, volume, source, captured_at
+                    FROM price_snapshots
+                    WHERE item_name = ?
+                    ORDER BY id DESC
+                    LIMIT 1 OFFSET 1
+                    """,
+                    (item_name,),
+                ).fetchone()
+        return row
+
     def latest_price_snapshot(self, item_name: str, source: Optional[str] = None):
         with self._connect() as conn:
             if source:
@@ -195,6 +221,20 @@ class Storage:
                     """,
                     (item_name,),
                 ).fetchone()
+        return row
+
+    def previous_price_snapshot(self, item_name: str, source: str):
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT item_name, price, volume, source, captured_at
+                FROM price_snapshots
+                WHERE item_name = ? AND source = ?
+                ORDER BY id DESC
+                LIMIT 1 OFFSET 1
+                """,
+                (item_name, source),
+            ).fetchone()
         return row
 
     def count_watch_items(self) -> int:
