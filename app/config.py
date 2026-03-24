@@ -30,6 +30,18 @@ def get_scan_interval_seconds() -> int:
     return int(os.getenv("AGENT_SCAN_INTERVAL_SECONDS", "60"))
 
 
+def get_alert_threshold_percent() -> float:
+    return float(os.getenv("AGENT_ALERT_THRESHOLD_PERCENT", "3"))
+
+
+def is_background_scan_enabled() -> bool:
+    return _as_bool("AGENT_ENABLE_BACKGROUND_SCAN", "true")
+
+
+def get_admin_sender_id() -> str:
+    return os.getenv("AGENT_ADMIN_SENDER_ID", "").strip()
+
+
 def is_local_commands_enabled() -> bool:
     return _as_bool("AGENT_ENABLE_LOCAL_COMMANDS", "false")
 

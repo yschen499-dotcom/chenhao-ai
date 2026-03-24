@@ -1,8 +1,25 @@
 import logging
+from dataclasses import dataclass
 from datetime import datetime
 
-from .collector import PlatformPrice, SteamDTCollector
+from .alerts import build_alert_key, build_price_alert_message
+from .collector import CollectedPrice, PlatformPrice, SteamDTCollector
+from .config import get_alert_threshold_percent
 from .storage import Storage
+
+
+@dataclass
+class TriggeredAlert:
+    alert_type: str
+    alert_key: str
+    message: str
+    item_name: str
+
+
+@dataclass
+class ScanResult:
+    summary_text: str
+    triggered_alerts: list[TriggeredAlert]
 
 
 class MonitorService:
@@ -60,20 +77,66 @@ class MonitorService:
 
         return lines
 
+    def _build_triggered_alerts(self, row: CollectedPrice) -> list[TriggeredAlert]:
+        threshold = get_alert_threshold_percent()
+        alerts: list[TriggeredAlert] = []
+
+        for platform_row in row.platform_prices:
+            previous_snapshot = self.storage.previous_price_snapshot(row.item_name, platform_row.platform)
+            if not previous_snapshot:
+                continue
+
+            previous_price = float(previous_snapshot["price"])
+            if previous_price <= 0:
+                continue
+
+            change_pct = ((platform_row.sell_price - previous_price) / previous_price) * 100
+            if abs(change_pct) < threshold:
+                continue
+
+            alert_key = build_alert_key(row.item_name, platform_row.platform, platform_row.update_time)
+            message = build_price_alert_message(
+                item_name=row.item_name,
+                platform_label=self._platform_label(platform_row.platform),
+                current_price=platform_row.sell_price,
+                previous_price=previous_price,
+                bidding_price=platform_row.bidding_price,
+                sell_count=platform_row.sell_count,
+                change_pct=change_pct,
+            )
+            alerts.append(
+                TriggeredAlert(
+                    alert_type="price_move",
+                    alert_key=alert_key,
+                    message=message,
+                    item_name=row.item_name,
+                )
+            )
+
+        return alerts
+
     def scan_once(self) -> str:
+        return self.run_scan().summary_text
+
+    def run_scan(self) -> ScanResult:
         now = datetime.utcnow().isoformat(timespec="seconds")
         watch_items = self.storage.list_enabled_watch_item_names()
         if not watch_items:
             self.storage.write_state("last_scan_time", now)
             self.storage.write_state("last_error", "无")
-            return "当前没有启用中的监控饰品，请先使用“添加监控 饰品名称”。"
+            return ScanResult(
+                summary_text="当前没有启用中的监控饰品，请先使用“添加监控 饰品名称”。",
+                triggered_alerts=[],
+            )
 
         success_rows = []
         failed_rows = []
+        triggered_alerts: list[TriggeredAlert] = []
 
         for item_name in watch_items:
             try:
                 collected = self.collector.fetch_single_price(item_name)
+                triggered_alerts.extend(self._build_triggered_alerts(collected))
                 primary = self._pick_primary_platform(collected.platform_prices)
                 for platform_row in collected.platform_prices:
                     self.storage.save_price_snapshot(
@@ -118,4 +181,4 @@ class MonitorService:
             for item_name, error in failed_rows[:3]:
                 lines.append(f"  • {item_name} -> {error}")
 
-        return "\n".join(lines)
+        return ScanResult(summary_text="\n".join(lines), triggered_alerts=triggered_alerts)

@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Optional
@@ -11,7 +12,13 @@ import dingtalk_stream
 import requests
 from dingtalk_stream import AckMessage
 
-from app.config import get_log_level, get_max_reply_chars
+from app.alerts import record_triggered_alert
+from app.config import (
+    get_log_level,
+    get_max_reply_chars,
+    get_scan_interval_seconds,
+    is_auto_scan_enabled,
+)
 from app.monitor import MonitorService
 from app.router import CommandRouter
 from app.storage import Storage
@@ -65,9 +72,14 @@ def _preview_json(data, limit: int = 800) -> str:
 
 
 class InternalTestBotHandler(dingtalk_stream.ChatbotHandler):
-    def __init__(self, router: CommandRouter):
+    def __init__(self, router: CommandRouter, storage: Storage):
         super().__init__()
         self.router = router
+        self.storage = storage
+        self._latest_incoming = None
+
+    def latest_incoming(self):
+        return self._latest_incoming
 
     async def process(self, callback: dingtalk_stream.CallbackMessage):
         try:
@@ -78,6 +90,10 @@ class InternalTestBotHandler(dingtalk_stream.ChatbotHandler):
                 _preview_json(getattr(callback, "data", None)),
             )
             incoming = dingtalk_stream.ChatbotMessage.from_dict(callback.data)
+            self._latest_incoming = incoming
+            sender_staff_id = getattr(incoming, "sender_staff_id", "") or ""
+            if sender_staff_id:
+                self.storage.write_state("admin_sender_staff_id", sender_staff_id)
             text = ""
             if getattr(incoming, "text", None) and getattr(incoming.text, "content", None):
                 text = incoming.text.content
@@ -148,6 +164,46 @@ def _loop_exception_handler(loop: asyncio.AbstractEventLoop, context: dict):
     loop.default_exception_handler(context)
 
 
+def _start_background_scan_loop(
+    handler: InternalTestBotHandler,
+    monitor: MonitorService,
+    storage: Storage,
+) -> None:
+    if not is_auto_scan_enabled():
+        logging.info("自动扫描未开启，当前只支持手动“立即扫描”。")
+        return
+
+    interval = get_scan_interval_seconds()
+
+    def _worker():
+        logging.info("后台自动扫描已启动，间隔 %ss。", interval)
+        while True:
+            try:
+                result = monitor.run_scan()
+                latest_incoming = handler.latest_incoming()
+                for alert in result.triggered_alerts:
+                    inserted = record_triggered_alert(
+                        storage=storage,
+                        alert_type=alert.alert_type,
+                        alert_key=alert.alert_key,
+                        message=alert.message,
+                        item_name=alert.item_name,
+                    )
+                    if not inserted:
+                        continue
+                    if latest_incoming is None:
+                        logging.info("命中提醒但尚无管理员会话上下文，跳过主动推送。")
+                        continue
+                    logging.info("主动推送异动提醒：%s", alert.alert_key)
+                    handler.reply_text(_truncate(alert.message), latest_incoming)
+            except Exception:
+                logging.exception("后台自动扫描失败。")
+            time.sleep(interval)
+
+    thread = threading.Thread(target=_worker, daemon=True, name="price-alert-loop")
+    thread.start()
+
+
 def main():
     _load_env()
     log_level = get_log_level()
@@ -189,7 +245,7 @@ def main():
 
             credential = dingtalk_stream.Credential(client_id, client_secret)
             client = dingtalk_stream.DingTalkStreamClient(credential)
-            handler = InternalTestBotHandler(router)
+            handler = InternalTestBotHandler(router, storage)
             chatbot_topic = dingtalk_stream.ChatbotMessage.TOPIC
             delegate_topic = dingtalk_stream.ChatbotMessage.DELEGATE_TOPIC
             client.register_callback_handler(chatbot_topic, handler)
@@ -197,6 +253,7 @@ def main():
             client.register_callback_handler(delegate_topic, handler)
             logging.info("Registered callback handlers: %s, %s", chatbot_topic, delegate_topic)
             logging.info("Waiting for direct-chat messages or @mentions in group chats.")
+            _start_background_scan_loop(handler, monitor, storage)
             client.start_forever()
         except KeyboardInterrupt:
             logging.info("Stream bot stopped by user.")
