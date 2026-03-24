@@ -1,73 +1,71 @@
 # test_dingding
 
-Internal-test DingTalk Stream bot for building a CS2 monitoring assistant.
+内部测试用的钉钉 Stream 机器人，用于逐步搭建 CS2 盯盘助手。
 
-This repository currently focuses on the first-stage internal test architecture:
+当前仓库主要聚焦在第一阶段内部测试骨架：
 
-- keep DingTalk as the management and testing entrypoint
-- use SQLite for local internal state
-- support admin/test commands through chat
-- prepare the project structure for collector, strategy, monitor, and alert modules
+- 保留钉钉作为管理和测试入口
+- 使用 SQLite 保存本地状态
+- 通过聊天命令管理监控列表和测试链路
+- 为后续采集器、策略、监控调度和提醒模块预留结构
 
-## Files
+## 文件说明
 
 - `dingtalk_agent.py`: DingTalk Stream entrypoint
-- `app/`: internal test business modules
-- `scripts/init_db.py`: initialize the SQLite database
-- `CS2_MVP_Checklist.md`: product MVP planning doc
-- `Internal_Test_Architecture.md`: internal architecture draft
-- `.env.dingtalk_agent`: local credentials/config file (not committed)
+- `app/`: 内部测试业务模块
+- `scripts/init_db.py`: 初始化 SQLite 数据库
+- `CS2_MVP_Checklist.md`: 产品 MVP 规划文档
+- `Internal_Test_Architecture.md`: 内部测试架构草案
+- `.env.dingtalk_agent`: 本地凭证与配置文件（不提交）
 
-## Setup
+## 环境准备
 
-1. Create and activate a Python environment.
-2. Install dependencies:
+1. 创建并激活 Python 环境。
+2. 安装依赖：
 
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Create `.env.dingtalk_agent` in the project root:
+3. 在项目根目录创建 `.env.dingtalk_agent`：
 
 ```env
-DINGTALK_STREAM_CLIENT_ID=your_app_key
-DINGTALK_STREAM_CLIENT_SECRET=your_app_secret
+DINGTALK_STREAM_CLIENT_ID=你的AppKey
+DINGTALK_STREAM_CLIENT_SECRET=你的AppSecret
 
-# Optional
+# 可选
 # DINGTALK_AGENT_LOG_LEVEL=DEBUG
 # AGENT_DB_PATH=data/app.db
 # AGENT_SCAN_INTERVAL_SECONDS=60
 # AGENT_MAX_REPLY_CHARS=3000
 ```
 
-You can also use `DINGTALK_APP_KEY` and `DINGTALK_APP_SECRET` instead of the
-stream-specific variable names.
+你也可以使用 `DINGTALK_APP_KEY` 和 `DINGTALK_APP_SECRET` 这组变量名。
 
-## Initialize local storage
+## 初始化本地存储
 
 ```bash
 python3 scripts/init_db.py
 ```
 
-## Run
+## 运行
 
 ```bash
 python3 dingtalk_agent.py
 ```
 
-## Internal test commands
+## 内部测试命令
 
-- `ping`
-- `help`
-- `status`
-- `watchlist`
-- `add 名称`
-- `remove 名称`
-- `scan`
-- `test alert`
+- `帮助`
+- `状态`
+- `监控列表`
+- `添加监控 AK-47 | 红线 (久经沙场)`
+- `删除监控 AK-47 | 红线 (久经沙场)`
+- `立即扫描`
+- `测试提醒`
 
-## Notes
+## 说明
 
-- The current version is an internal testing skeleton.
-- Real CS2 market collection and strategy logic have not been connected yet.
-- `scan` currently validates the command, state, and storage flow only.
+- 当前版本仍然是内部测试骨架。
+- 真实 CS2 市场采集与策略逻辑还没有正式接入。
+- `立即扫描` 当前主要用于验证命令、状态和存储链路。

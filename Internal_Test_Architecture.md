@@ -119,14 +119,14 @@ project_root/
 
 将钉钉收到的文本分发到不同命令处理逻辑，比如：
 
-- `help`
-- `status`
-- `scan`
-- `watchlist`
-- `add xxx`
-- `remove xxx`
-- `summary`
-- `test alert`
+- `帮助`
+- `状态`
+- `立即扫描`
+- `监控列表`
+- `添加监控 AK-47 | 红线 (久经沙场)`
+- `删除监控 AK-47 | 红线 (久经沙场)`
+- `摘要`
+- `测试提醒`
 
 #### `app/commands.py`
 
@@ -357,19 +357,19 @@ SQLite 数据库文件。
 
 建议先做以下命令：
 
-- `help`
-- `status`
-- `watchlist`
-- `scan`
-- `test alert`
+- `帮助`
+- `状态`
+- `监控列表`
+- `立即扫描`
+- `测试提醒`
 
 ### 第二批命令
 
 在第一批稳定后再做：
 
-- `add xxx`
-- `remove xxx`
-- `summary`
+- `添加监控 xxx`
+- `删除监控 xxx`
+- `摘要`
 
 ### 暂时不做
 
@@ -386,10 +386,10 @@ SQLite 数据库文件。
 
 先支持：
 
-- `help`
-- `status`
-- `scan`
-- `test alert`
+- `帮助`
+- `状态`
+- `立即扫描`
+- `测试提醒`
 
 ### 第 2 步：新增 `storage.py` 和 SQLite
 

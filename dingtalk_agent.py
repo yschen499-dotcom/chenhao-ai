@@ -177,7 +177,7 @@ def main():
     storage = Storage()
     monitor = MonitorService(storage)
     router = CommandRouter(storage=storage, scan_callback=monitor.scan_once)
-    logging.info("Internal test command set ready: help/status/watchlist/add/remove/scan/test alert")
+    logging.info("内部测试命令已就绪：帮助/状态/监控列表/添加监控/删除监控/立即扫描/测试提醒")
 
     while True:
         try:
