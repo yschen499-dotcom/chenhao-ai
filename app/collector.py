@@ -8,6 +8,7 @@ import requests
 
 from .config import (
     STEAMDT_API_BASE,
+    STEAMDT_API_KEY,
     STEAMDT_BASE_CACHE_PATH,
     STEAMDT_PRICE_PLATFORM,
     STEAMDT_REQUEST_TIMEOUT_SECONDS,
@@ -32,6 +33,15 @@ class SteamDTCollector:
         ensure_data_dir()
         self.base_cache_path: Path = STEAMDT_BASE_CACHE_PATH
         self.session = requests.Session()
+        if STEAMDT_API_KEY:
+            self.session.headers.update({"Authorization": f"Bearer {STEAMDT_API_KEY}"})
+
+    def _ensure_api_key(self) -> None:
+        if not STEAMDT_API_KEY:
+            raise RuntimeError(
+                "未配置 SteamDT API Key。请在 .env.dingtalk_agent 中设置 "
+                "AGENT_STEAMDT_API_KEY=你的SteamDT开放平台Key"
+            )
 
     def _load_base_cache(self) -> Dict[str, str]:
         if not self.base_cache_path.exists():
@@ -53,6 +63,7 @@ class SteamDTCollector:
         Fetch Chinese item names -> marketHashName mapping.
         SteamDT documents that this endpoint should be called sparingly.
         """
+        self._ensure_api_key()
         url = f"{STEAMDT_API_BASE}/open/cs2/v1/base"
         resp = self.session.get(url, timeout=STEAMDT_REQUEST_TIMEOUT_SECONDS)
         resp.raise_for_status()
@@ -91,6 +102,7 @@ class SteamDTCollector:
         return market_hash_name
 
     def fetch_single_price(self, item_name: str) -> CollectedPrice:
+        self._ensure_api_key()
         market_hash_name = self.resolve_market_hash_name(item_name)
         url = f"{STEAMDT_API_BASE}/open/cs2/v1/price/single"
         params = {"marketHashName": market_hash_name}

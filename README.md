@@ -33,6 +33,7 @@ pip install -r requirements.txt
 ```env
 DINGTALK_STREAM_CLIENT_ID=你的AppKey
 DINGTALK_STREAM_CLIENT_SECRET=你的AppSecret
+AGENT_STEAMDT_API_KEY=你的SteamDT开放平台API_KEY
 
 # 可选
 # DINGTALK_AGENT_LOG_LEVEL=DEBUG

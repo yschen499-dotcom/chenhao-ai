@@ -16,6 +16,7 @@ ENABLE_LOCAL_COMMANDS = os.getenv("AGENT_ENABLE_LOCAL_COMMANDS", "false").strip(
     "on",
 }
 STEAMDT_API_BASE = os.getenv("AGENT_STEAMDT_API_BASE", "https://open.steamdt.com").rstrip("/")
+STEAMDT_API_KEY = os.getenv("AGENT_STEAMDT_API_KEY", "").strip()
 STEAMDT_PRICE_PLATFORM = os.getenv("AGENT_STEAMDT_PRICE_PLATFORM", "BUFF").strip().upper()
 STEAMDT_REQUEST_TIMEOUT_SECONDS = int(os.getenv("AGENT_STEAMDT_REQUEST_TIMEOUT_SECONDS", "15"))
 
