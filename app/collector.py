@@ -7,12 +7,12 @@ from typing import Dict, List, Optional
 import requests
 
 from .config import (
-    STEAMDT_API_BASE,
-    STEAMDT_API_KEY,
-    STEAMDT_BASE_CACHE_PATH,
-    STEAMDT_PRICE_PLATFORM,
-    STEAMDT_REQUEST_TIMEOUT_SECONDS,
     ensure_data_dir,
+    get_steamdt_api_base,
+    get_steamdt_api_key,
+    get_steamdt_base_cache_path,
+    get_steamdt_price_platform,
+    get_steamdt_request_timeout_seconds,
 )
 
 
@@ -31,13 +31,17 @@ class CollectedPrice:
 class SteamDTCollector:
     def __init__(self):
         ensure_data_dir()
-        self.base_cache_path: Path = STEAMDT_BASE_CACHE_PATH
+        self.base_cache_path: Path = get_steamdt_base_cache_path()
+        self.api_base = get_steamdt_api_base()
+        self.api_key = get_steamdt_api_key()
+        self.price_platform = get_steamdt_price_platform()
+        self.request_timeout_seconds = get_steamdt_request_timeout_seconds()
         self.session = requests.Session()
-        if STEAMDT_API_KEY:
-            self.session.headers.update({"Authorization": f"Bearer {STEAMDT_API_KEY}"})
+        if self.api_key:
+            self.session.headers.update({"Authorization": f"Bearer {self.api_key}"})
 
     def _ensure_api_key(self) -> None:
-        if not STEAMDT_API_KEY:
+        if not self.api_key:
             raise RuntimeError(
                 "未配置 SteamDT API Key。请在 .env.dingtalk_agent 中设置 "
                 "AGENT_STEAMDT_API_KEY=你的SteamDT开放平台Key"
@@ -64,8 +68,8 @@ class SteamDTCollector:
         SteamDT documents that this endpoint should be called sparingly.
         """
         self._ensure_api_key()
-        url = f"{STEAMDT_API_BASE}/open/cs2/v1/base"
-        resp = self.session.get(url, timeout=STEAMDT_REQUEST_TIMEOUT_SECONDS)
+        url = f"{self.api_base}/open/cs2/v1/base"
+        resp = self.session.get(url, timeout=self.request_timeout_seconds)
         resp.raise_for_status()
         payload = resp.json()
         if not payload.get("success"):
@@ -104,9 +108,9 @@ class SteamDTCollector:
     def fetch_single_price(self, item_name: str) -> CollectedPrice:
         self._ensure_api_key()
         market_hash_name = self.resolve_market_hash_name(item_name)
-        url = f"{STEAMDT_API_BASE}/open/cs2/v1/price/single"
+        url = f"{self.api_base}/open/cs2/v1/price/single"
         params = {"marketHashName": market_hash_name}
-        resp = self.session.get(url, params=params, timeout=STEAMDT_REQUEST_TIMEOUT_SECONDS)
+        resp = self.session.get(url, params=params, timeout=self.request_timeout_seconds)
         resp.raise_for_status()
         payload = resp.json()
         if not payload.get("success"):
@@ -116,7 +120,7 @@ class SteamDTCollector:
         if not rows:
             raise RuntimeError(f"SteamDT 没有返回饰品价格：{item_name}")
 
-        preferred_platform = STEAMDT_PRICE_PLATFORM
+        preferred_platform = self.price_platform
         selected = None
         for row in rows:
             if (row.get("platform") or "").upper() == preferred_platform:

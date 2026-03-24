@@ -11,7 +11,7 @@ import dingtalk_stream
 import requests
 from dingtalk_stream import AckMessage
 
-from app.config import LOG_LEVEL, MAX_REPLY_CHARS
+from app.config import get_log_level, get_max_reply_chars
 from app.monitor import MonitorService
 from app.router import CommandRouter
 from app.storage import Storage
@@ -49,9 +49,10 @@ def _load_env():
 
 
 def _truncate(s: str) -> str:
+    max_reply_chars = get_max_reply_chars()
     if len(s) <= MAX_REPLY_CHARS:
         return s
-    return s[: MAX_REPLY_CHARS - 20] + "\n...(truncated)..."
+    return s[: max_reply_chars - 20] + "\n...(truncated)..."
 
 def _preview_json(data, limit: int = 800) -> str:
     try:
@@ -149,6 +150,7 @@ def _loop_exception_handler(loop: asyncio.AbstractEventLoop, context: dict):
 
 def main():
     _load_env()
+    log_level = get_log_level()
 
     client_id = os.getenv("DINGTALK_STREAM_CLIENT_ID", "").strip() or os.getenv("DINGTALK_APP_KEY", "").strip()
     client_secret = os.getenv("DINGTALK_STREAM_CLIENT_SECRET", "").strip() or os.getenv(
@@ -161,13 +163,13 @@ def main():
             "or DINGTALK_APP_KEY/DINGTALK_APP_SECRET in .env.dingtalk_agent."
         )
 
-    logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO), format="%(asctime)s [%(levelname)s] %(message)s")
+    logging.basicConfig(level=getattr(logging, log_level, logging.INFO), format="%(asctime)s [%(levelname)s] %(message)s")
     # Suppress noisy logging formatting errors from third-party SDK internals.
     logging.raiseExceptions = False
-    logging.getLogger("dingtalk_stream").setLevel(getattr(logging, LOG_LEVEL, logging.INFO))
+    logging.getLogger("dingtalk_stream").setLevel(getattr(logging, log_level, logging.INFO))
     logging.info("Starting DingTalk Stream bot...")
     logging.info("ENV file: %s", ENV_PATH)
-    logging.info("Log level: %s", LOG_LEVEL)
+    logging.info("Log level: %s", log_level)
     _validate_stream_credentials(client_id, client_secret)
 
     # Windows fix: avoid ProactorEventLoop + websockets instability (InvalidStateError/EOFError).

@@ -1,8 +1,8 @@
 import sqlite3
 from datetime import datetime
-from typing import Iterable, List
+from typing import Iterable, List, Optional
 
-from .config import DB_PATH, ensure_data_dir
+from .config import ensure_data_dir, get_db_path
 
 
 def _utcnow() -> str:
@@ -10,8 +10,8 @@ def _utcnow() -> str:
 
 
 class Storage:
-    def __init__(self, db_path=DB_PATH):
-        self.db_path = db_path
+    def __init__(self, db_path: Optional[str] = None):
+        self.db_path = str(db_path) if db_path else str(get_db_path())
         ensure_data_dir()
         self.init_db()
 

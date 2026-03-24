@@ -1,7 +1,7 @@
 from typing import Callable, Optional
 
-from .alerts import build_test_alert_message, record_test_alert
-from .config import DB_PATH, SCAN_INTERVAL_SECONDS
+from .alerts import record_test_alert
+from .config import get_db_path, get_scan_interval_seconds
 from .storage import Storage
 
 
@@ -43,8 +43,8 @@ def status_text(storage: Storage) -> str:
 
     lines = [
         "内部测试状态：",
-        f"- 数据库: {DB_PATH}",
-        f"- 扫描间隔: {SCAN_INTERVAL_SECONDS}s",
+        f"- 数据库: {get_db_path()}",
+        f"- 扫描间隔: {get_scan_interval_seconds()}s",
         f"- 监控标的数: {watch_count}",
         f"- 最近扫描: {last_scan}",
         f"- 最近成功抓价: {last_success}",
