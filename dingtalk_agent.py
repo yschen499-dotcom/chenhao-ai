@@ -50,7 +50,7 @@ def _load_env():
 
 def _truncate(s: str) -> str:
     max_reply_chars = get_max_reply_chars()
-    if len(s) <= MAX_REPLY_CHARS:
+    if len(s) <= max_reply_chars:
         return s
     return s[: max_reply_chars - 20] + "\n...(truncated)..."
 
