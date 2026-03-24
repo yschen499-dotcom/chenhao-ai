@@ -2,7 +2,7 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import requests
 
@@ -17,9 +17,7 @@ from .config import (
 
 
 @dataclass
-class CollectedPrice:
-    item_name: str
-    market_hash_name: str
+class PlatformPrice:
     platform: str
     sell_price: float
     sell_count: int
@@ -28,13 +26,19 @@ class CollectedPrice:
     update_time: int
 
 
+@dataclass
+class CollectedPrice:
+    item_name: str
+    market_hash_name: str
+    platform_prices: List[PlatformPrice]
+
+
 class SteamDTCollector:
     def __init__(self):
         ensure_data_dir()
         self.base_cache_path: Path = get_steamdt_base_cache_path()
         self.api_base = get_steamdt_api_base()
         self.api_key = get_steamdt_api_key()
-        self.price_platform = get_steamdt_price_platform()
         self.request_timeout_seconds = get_steamdt_request_timeout_seconds()
         self.session = requests.Session()
         if self.api_key:
@@ -120,24 +124,33 @@ class SteamDTCollector:
         if not rows:
             raise RuntimeError(f"SteamDT 没有返回饰品价格：{item_name}")
 
-        preferred_platform = self.price_platform
-        selected = None
+        platform_prices: List[PlatformPrice] = []
         for row in rows:
-            if (row.get("platform") or "").upper() == preferred_platform:
-                selected = row
-                break
-        if selected is None:
-            selected = rows[0]
+            platform = (row.get("platform") or "").upper()
+            if not platform:
+                continue
+            platform_prices.append(
+                PlatformPrice(
+                    platform=platform,
+                    sell_price=float(row.get("sellPrice") or 0),
+                    sell_count=int(row.get("sellCount") or 0),
+                    bidding_price=float(row.get("biddingPrice") or 0),
+                    bidding_count=int(row.get("biddingCount") or 0),
+                    update_time=int(row.get("updateTime") or 0),
+                )
+            )
+
+        if not platform_prices:
+            raise RuntimeError(f"SteamDT 返回了空的平台价格列表：{item_name}")
+
+        priority = ["BUFF", "YOUPIN", "C5", "STEAM", "HALOSKINS"]
+        priority_index = {name: idx for idx, name in enumerate(priority)}
+        platform_prices.sort(key=lambda row: priority_index.get(row.platform, 999))
 
         return CollectedPrice(
             item_name=item_name,
             market_hash_name=market_hash_name,
-            platform=(selected.get("platform") or "").upper() or preferred_platform,
-            sell_price=float(selected.get("sellPrice") or 0),
-            sell_count=int(selected.get("sellCount") or 0),
-            bidding_price=float(selected.get("biddingPrice") or 0),
-            bidding_count=int(selected.get("biddingCount") or 0),
-            update_time=int(selected.get("updateTime") or 0),
+            platform_prices=platform_prices,
         )
 
     def fetch_prices(self, item_names: List[str]) -> List[CollectedPrice]:
