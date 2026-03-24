@@ -48,12 +48,12 @@ class MonitorService:
         for platform in wanted_order:
             row = by_name.get(platform)
             if row is None:
-                lines.append(f"  - {self._platform_label(platform)}：暂无数据")
+                lines.append(f"    ├ {self._platform_label(platform)}：暂无数据")
                 continue
             previous_snapshot = self.storage.previous_price_snapshot(item_name, platform)
             previous_price = float(previous_snapshot["price"]) if previous_snapshot else None
             lines.append(
-                f"  - {self._platform_label(platform)}：在售价 ¥{row.sell_price:.2f}"
+                f"    ├ {self._platform_label(platform)}：在售价 ¥{row.sell_price:.2f}"
                 f" | 求购价 ¥{row.bidding_price:.2f} | 在售 {row.sell_count} "
                 f"{self._format_delta_text(row.sell_price, previous_price)}"
             )
@@ -96,22 +96,26 @@ class MonitorService:
             self.storage.write_state("last_price_fetch_time", now)
 
         lines = [
-            "已完成一次真实价格扫描。",
-            f"- 扫描时间: {now}",
-            f"- 监控标的数: {len(watch_items)}",
-            f"- 成功抓取: {len(success_rows)}",
-            f"- 抓取失败: {len(failed_rows)}",
+            "📡 已完成一次真实价格扫描",
+            f"⏰ 扫描时间：{now}",
+            f"🎯 监控标的：{len(watch_items)}",
+            f"✅ 成功抓取：{len(success_rows)}",
+            f"❌ 抓取失败：{len(failed_rows)}",
         ]
 
         if success_rows:
-            lines.append("- 最新价格：")
+            lines.append("")
+            lines.append("📦 最新价格面板")
             for row in success_rows[:5]:
-                lines.append(f"  * {row.item_name}")
+                lines.append("━━━━━━━━━━━━━━━━━━")
+                lines.append(f"🔹 {row.item_name}")
                 lines.extend(self._format_platform_block(row.item_name, row.platform_prices))
+            lines.append("━━━━━━━━━━━━━━━━━━")
 
         if failed_rows:
-            lines.append("- 失败项：")
+            lines.append("")
+            lines.append("⚠️ 失败项")
             for item_name, error in failed_rows[:3]:
-                lines.append(f"  * {item_name} -> {error}")
+                lines.append(f"  • {item_name} -> {error}")
 
         return "\n".join(lines)
