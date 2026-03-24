@@ -74,6 +74,18 @@ class Storage:
             ).fetchall()
         return rows
 
+    def list_enabled_watch_item_names(self) -> List[str]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT item_name
+                FROM watchlists
+                WHERE enabled = 1
+                ORDER BY item_name COLLATE NOCASE
+                """
+            ).fetchall()
+        return [row["item_name"] for row in rows]
+
     def add_watch_item(self, item_name: str, category: str = "manual") -> bool:
         now = _utcnow()
         with self._connect() as conn:
@@ -158,6 +170,20 @@ class Storage:
                 """,
                 (item_name, price, volume, source, _utcnow()),
             )
+
+    def latest_price_snapshot(self, item_name: str):
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT item_name, price, volume, source, captured_at
+                FROM price_snapshots
+                WHERE item_name = ?
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (item_name,),
+            ).fetchone()
+        return row
 
     def count_watch_items(self) -> int:
         with self._connect() as conn:

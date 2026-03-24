@@ -2,12 +2,13 @@
 
 内部测试用的钉钉 Stream 机器人，用于逐步搭建 CS2 盯盘助手。
 
-当前仓库主要聚焦在第一阶段内部测试骨架：
+当前仓库主要聚焦在第一阶段内部测试版：
 
 - 保留钉钉作为管理和测试入口
 - 使用 SQLite 保存本地状态
 - 通过聊天命令管理监控列表和测试链路
-- 为后续采集器、策略、监控调度和提醒模块预留结构
+- 已接入 SteamDT 第一版价格采集能力
+- 为后续策略、监控调度和提醒模块继续预留结构
 
 ## 文件说明
 
@@ -38,6 +39,8 @@ DINGTALK_STREAM_CLIENT_SECRET=你的AppSecret
 # AGENT_DB_PATH=data/app.db
 # AGENT_SCAN_INTERVAL_SECONDS=60
 # AGENT_MAX_REPLY_CHARS=3000
+# AGENT_STEAMDT_PRICE_PLATFORM=BUFF
+# AGENT_STEAMDT_REQUEST_TIMEOUT_SECONDS=15
 ```
 
 你也可以使用 `DINGTALK_APP_KEY` 和 `DINGTALK_APP_SECRET` 这组变量名。
@@ -66,6 +69,7 @@ python3 dingtalk_agent.py
 
 ## 说明
 
-- 当前版本仍然是内部测试骨架。
-- 真实 CS2 市场采集与策略逻辑还没有正式接入。
-- `立即扫描` 当前主要用于验证命令、状态和存储链路。
+- 当前版本仍然是内部测试版，不包含对外售卖逻辑。
+- `立即扫描` 已经会调用 SteamDT 接口抓取监控饰品价格，并把结果写入本地 SQLite。
+- 第一次扫描某个中文饰品名时，会尝试从 SteamDT 基础信息接口刷新名称映射缓存。
+- 当前还没有接入自动异动判断和定时后台轮询，重点是先跑通真实数据采集链路。

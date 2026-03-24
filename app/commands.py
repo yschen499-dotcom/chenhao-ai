@@ -37,6 +37,7 @@ def help_text() -> str:
 def status_text(storage: Storage) -> str:
     last_scan = storage.read_state("last_scan_time", "未扫描")
     last_error = storage.read_state("last_error", "无")
+    last_success = storage.read_state("last_successful_scan_time", "暂无")
     watch_count = storage.count_watch_items()
     recent_alerts = storage.recent_alerts(limit=3)
 
@@ -46,6 +47,7 @@ def status_text(storage: Storage) -> str:
         f"- 扫描间隔: {SCAN_INTERVAL_SECONDS}s",
         f"- 监控标的数: {watch_count}",
         f"- 最近扫描: {last_scan}",
+        f"- 最近成功抓价: {last_success}",
         f"- 最近错误: {last_error}",
     ]
 
