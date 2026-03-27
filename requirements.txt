@@ -1,2 +1,4 @@
 dingtalk-stream
 requests
+APScheduler>=3.10.0
+tzdata>=2024.1

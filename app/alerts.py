@@ -1,3 +1,5 @@
+from typing import Optional, Sequence
+
 from .storage import Storage
 
 
@@ -14,31 +16,29 @@ def record_test_alert(storage: Storage) -> str:
     storage.add_alert_event("test_alert", "test_alert_manual", message)
     return message
 
-def build_price_alert_message(
+
+def build_multimetric_alert_key(item_name: str, platform: str, update_time: int) -> str:
+    return f"metric_move::{item_name}::{platform.upper()}::{update_time}"
+
+
+def build_multimetric_alert_message(
     item_name: str,
     platform_label: str,
-    current_price: float,
-    previous_price: float,
-    bidding_price: float,
-    sell_count: int,
-    change_pct: float,
+    threshold_percent: float,
+    detail_lines: Sequence[str],
 ) -> str:
-    delta = current_price - previous_price
-    arrow = "🔺" if delta > 0 else "🔻"
-    return (
-        f"🚨 单品异动提醒 | {item_name}\n"
-        f"平台：{platform_label}\n"
-        f"当前在售价：¥{current_price:.2f}\n"
-        f"上次在售价：¥{previous_price:.2f}\n"
-        f"价格变化：{arrow}¥{abs(delta):.2f} ({arrow}{abs(change_pct):.2f}%)\n"
-        f"当前求购价：¥{bidding_price:.2f}\n"
-        f"当前在售量：{sell_count}\n"
-        "触发条件：任意平台较上次涨跌超过 3%"
-    )
-
-
-def build_alert_key(item_name: str, platform: str, update_time: int) -> str:
-    return f"price_move::{item_name}::{platform.upper()}::{update_time}"
+    lines = [
+        f"🚨 指标异动提醒 | {item_name}",
+        f"平台：{platform_label}",
+        f"触发条件：在售价、求购价、在售量、求购量 任一较上次波动幅度 ≥ {threshold_percent:g}%",
+        "",
+        "本次满足条件的指标：",
+    ]
+    for s in detail_lines:
+        lines.append(f"  · {s}")
+    lines.append("")
+    lines.append("说明：数据来自 SteamDT 接口与本地快照；不构成投资建议。")
+    return "\n".join(lines)
 
 
 def record_triggered_alert(storage: Storage, alert_type: str, alert_key: str, message: str, item_name: str = "") -> bool:

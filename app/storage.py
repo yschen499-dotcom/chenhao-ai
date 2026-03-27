@@ -42,7 +42,8 @@ class Storage:
                     price REAL NOT NULL,
                     volume REAL,
                     source TEXT,
-                    captured_at TEXT NOT NULL
+                    captured_at TEXT NOT NULL,
+                    scan_channel TEXT NOT NULL DEFAULT 'background'
                 );
 
                 CREATE TABLE IF NOT EXISTS alert_events (
@@ -61,6 +62,127 @@ class Storage:
                 );
                 """
             )
+            self._migrate_price_snapshots_scan_channel()
+            self._migrate_price_snapshots_bid_volume()
+            self._migrate_price_snapshots_bid_price()
+            self._migrate_market_snapshots()
+
+    def _migrate_market_snapshots(self) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS market_snapshots (
+                    trade_date TEXT NOT NULL,
+                    slot TEXT NOT NULL,
+                    index_value REAL NOT NULL,
+                    yesterday_close REAL,
+                    high_price REAL,
+                    low_price REAL,
+                    rise_fall_pct REAL,
+                    up_num INTEGER,
+                    flat_num INTEGER,
+                    down_num INTEGER,
+                    captured_at TEXT NOT NULL,
+                    PRIMARY KEY (trade_date, slot)
+                )
+                """
+            )
+
+    def upsert_market_snapshot(
+        self,
+        trade_date: str,
+        slot: str,
+        *,
+        index_value: float,
+        yesterday_close: float,
+        high_price: float,
+        low_price: float,
+        rise_fall_pct: float,
+        up_num: int,
+        flat_num: int,
+        down_num: int,
+    ) -> None:
+        now = _utcnow()
+        td = (trade_date or "").strip()
+        sl = (slot or "").strip().lower()
+        if not td or sl not in {"morning", "evening"}:
+            raise ValueError("trade_date 或 slot 无效")
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO market_snapshots (
+                    trade_date, slot, index_value, yesterday_close, high_price, low_price,
+                    rise_fall_pct, up_num, flat_num, down_num, captured_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(trade_date, slot) DO UPDATE SET
+                    index_value = excluded.index_value,
+                    yesterday_close = excluded.yesterday_close,
+                    high_price = excluded.high_price,
+                    low_price = excluded.low_price,
+                    rise_fall_pct = excluded.rise_fall_pct,
+                    up_num = excluded.up_num,
+                    flat_num = excluded.flat_num,
+                    down_num = excluded.down_num,
+                    captured_at = excluded.captured_at
+                """,
+                (
+                    td,
+                    sl,
+                    float(index_value),
+                    float(yesterday_close),
+                    float(high_price),
+                    float(low_price),
+                    float(rise_fall_pct),
+                    int(up_num),
+                    int(flat_num),
+                    int(down_num),
+                    now,
+                ),
+            )
+
+    def get_market_snapshot(self, trade_date: str, slot: str):
+        td = (trade_date or "").strip()
+        sl = (slot or "").strip().lower()
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM market_snapshots WHERE trade_date = ? AND slot = ?",
+                (td, sl),
+            ).fetchone()
+        return row
+
+    def list_market_snapshots_in_range(self, start_date: str, end_date: str) -> List[sqlite3.Row]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM market_snapshots
+                WHERE trade_date >= ? AND trade_date <= ?
+                ORDER BY trade_date ASC, slot ASC
+                """,
+                (start_date.strip(), end_date.strip()),
+            ).fetchall()
+        return rows
+
+    def _migrate_price_snapshots_scan_channel(self) -> None:
+        with self._connect() as conn:
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(price_snapshots)").fetchall()}
+            if "scan_channel" not in cols:
+                conn.execute(
+                    "ALTER TABLE price_snapshots ADD COLUMN scan_channel TEXT NOT NULL DEFAULT 'background'"
+                )
+
+    def _migrate_price_snapshots_bid_volume(self) -> None:
+        """求购笔数（与在售量对照，用于扫货/压价等启发式信号）。"""
+        with self._connect() as conn:
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(price_snapshots)").fetchall()}
+            if "bid_volume" not in cols:
+                conn.execute("ALTER TABLE price_snapshots ADD COLUMN bid_volume REAL NOT NULL DEFAULT 0")
+
+    def _migrate_price_snapshots_bid_price(self) -> None:
+        """求购价（与在售价对照，用于异动预警）。"""
+        with self._connect() as conn:
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(price_snapshots)").fetchall()}
+            if "bid_price" not in cols:
+                conn.execute("ALTER TABLE price_snapshots ADD COLUMN bid_price REAL NOT NULL DEFAULT 0")
 
     def list_watch_items(self) -> List[sqlite3.Row]:
         with self._connect() as conn:
@@ -161,80 +283,203 @@ class Storage:
             ).fetchall()
         return rows
 
-    def save_price_snapshot(self, item_name: str, price: float, volume: float = 0.0, source: str = "manual") -> None:
+    def save_price_snapshot(
+        self,
+        item_name: str,
+        price: float,
+        volume: float = 0.0,
+        source: str = "manual",
+        *,
+        bid_volume: float = 0.0,
+        bid_price: float = 0.0,
+        scan_channel: str = "background",
+    ) -> None:
         with self._connect() as conn:
             conn.execute(
                 """
-                INSERT INTO price_snapshots (item_name, price, volume, source, captured_at)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO price_snapshots (
+                    item_name, price, volume, bid_volume, bid_price, source, captured_at, scan_channel
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (item_name, price, volume, source, _utcnow()),
+                (
+                    item_name,
+                    price,
+                    volume,
+                    float(bid_volume),
+                    float(bid_price),
+                    source,
+                    _utcnow(),
+                    scan_channel,
+                ),
             )
 
-    def previous_price_snapshot(self, item_name: str, source: Optional[str] = None):
+    def previous_price_snapshot(
+        self,
+        item_name: str,
+        source: Optional[str] = None,
+        *,
+        scan_channel: Optional[str] = None,
+    ):
+        """
+        Second-latest row for optional (item, source, scan_channel) filter.
+        scan_channel=None: consider all channels (legacy / 后台摘要).
+        """
         with self._connect() as conn:
             if source:
-                row = conn.execute(
-                    """
-                    SELECT item_name, price, volume, source, captured_at
-                    FROM price_snapshots
-                    WHERE item_name = ? AND source = ?
-                    ORDER BY id DESC
-                    LIMIT 1 OFFSET 1
-                    """,
-                    (item_name, source),
-                ).fetchone()
+                if scan_channel is not None:
+                    row = conn.execute(
+                        """
+                        SELECT item_name, price, volume, COALESCE(bid_volume, 0) AS bid_volume,
+                               COALESCE(bid_price, 0) AS bid_price,
+                               source, captured_at, scan_channel
+                        FROM price_snapshots
+                        WHERE item_name = ? AND source = ? AND scan_channel = ?
+                        ORDER BY id DESC
+                        LIMIT 1 OFFSET 1
+                        """,
+                        (item_name, source, scan_channel),
+                    ).fetchone()
+                else:
+                    row = conn.execute(
+                        """
+                        SELECT item_name, price, volume, COALESCE(bid_volume, 0) AS bid_volume,
+                               COALESCE(bid_price, 0) AS bid_price,
+                               source, captured_at, scan_channel
+                        FROM price_snapshots
+                        WHERE item_name = ? AND source = ?
+                        ORDER BY id DESC
+                        LIMIT 1 OFFSET 1
+                        """,
+                        (item_name, source),
+                    ).fetchone()
             else:
-                row = conn.execute(
-                    """
-                    SELECT item_name, price, volume, source, captured_at
-                    FROM price_snapshots
-                    WHERE item_name = ?
-                    ORDER BY id DESC
-                    LIMIT 1 OFFSET 1
-                    """,
-                    (item_name,),
-                ).fetchone()
+                if scan_channel is not None:
+                    row = conn.execute(
+                        """
+                        SELECT item_name, price, volume, COALESCE(bid_volume, 0) AS bid_volume,
+                               COALESCE(bid_price, 0) AS bid_price,
+                               source, captured_at, scan_channel
+                        FROM price_snapshots
+                        WHERE item_name = ? AND scan_channel = ?
+                        ORDER BY id DESC
+                        LIMIT 1 OFFSET 1
+                        """,
+                        (item_name, scan_channel),
+                    ).fetchone()
+                else:
+                    row = conn.execute(
+                        """
+                        SELECT item_name, price, volume, COALESCE(bid_volume, 0) AS bid_volume,
+                               COALESCE(bid_price, 0) AS bid_price,
+                               source, captured_at, scan_channel
+                        FROM price_snapshots
+                        WHERE item_name = ?
+                        ORDER BY id DESC
+                        LIMIT 1 OFFSET 1
+                        """,
+                        (item_name,),
+                    ).fetchone()
         return row
 
-    def latest_price_snapshot(self, item_name: str, source: Optional[str] = None):
+    def recent_sell_prices_for_source(
+        self,
+        item_name: str,
+        source: str,
+        limit: int,
+        *,
+        scan_channel: Optional[str] = None,
+    ) -> List[float]:
+        """
+        按 id 从旧到新返回在售价序列（用于波动率统计）。不含本次尚未写入的快照。
+        """
+        src = source.upper()
+        lim = max(1, int(limit))
+        with self._connect() as conn:
+            if scan_channel is not None:
+                rows = conn.execute(
+                    """
+                    SELECT price FROM price_snapshots
+                    WHERE item_name = ? AND UPPER(source) = ? AND scan_channel = ?
+                    ORDER BY id DESC
+                    LIMIT ?
+                    """,
+                    (item_name, src, scan_channel, lim),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT price FROM price_snapshots
+                    WHERE item_name = ? AND UPPER(source) = ?
+                    ORDER BY id DESC
+                    LIMIT ?
+                    """,
+                    (item_name, src, lim),
+                ).fetchall()
+        return [float(r["price"]) for r in reversed(rows)]
+
+    def latest_price_snapshot(
+        self,
+        item_name: str,
+        source: Optional[str] = None,
+        *,
+        scan_channel: Optional[str] = None,
+    ):
         with self._connect() as conn:
             if source:
-                row = conn.execute(
-                    """
-                    SELECT item_name, price, volume, source, captured_at
-                    FROM price_snapshots
-                    WHERE item_name = ? AND source = ?
-                    ORDER BY id DESC
-                    LIMIT 1
-                    """,
-                    (item_name, source),
-                ).fetchone()
+                if scan_channel is not None:
+                    row = conn.execute(
+                        """
+                        SELECT item_name, price, volume, COALESCE(bid_volume, 0) AS bid_volume,
+                               COALESCE(bid_price, 0) AS bid_price,
+                               source, captured_at, scan_channel
+                        FROM price_snapshots
+                        WHERE item_name = ? AND source = ? AND scan_channel = ?
+                        ORDER BY id DESC
+                        LIMIT 1
+                        """,
+                        (item_name, source, scan_channel),
+                    ).fetchone()
+                else:
+                    row = conn.execute(
+                        """
+                        SELECT item_name, price, volume, COALESCE(bid_volume, 0) AS bid_volume,
+                               COALESCE(bid_price, 0) AS bid_price,
+                               source, captured_at, scan_channel
+                        FROM price_snapshots
+                        WHERE item_name = ? AND source = ?
+                        ORDER BY id DESC
+                        LIMIT 1
+                        """,
+                        (item_name, source),
+                    ).fetchone()
             else:
-                row = conn.execute(
-                    """
-                    SELECT item_name, price, volume, source, captured_at
-                    FROM price_snapshots
-                    WHERE item_name = ?
-                    ORDER BY id DESC
-                    LIMIT 1
-                    """,
-                    (item_name,),
-                ).fetchone()
-        return row
-
-    def previous_price_snapshot(self, item_name: str, source: str):
-        with self._connect() as conn:
-            row = conn.execute(
-                """
-                SELECT item_name, price, volume, source, captured_at
-                FROM price_snapshots
-                WHERE item_name = ? AND source = ?
-                ORDER BY id DESC
-                LIMIT 1 OFFSET 1
-                """,
-                (item_name, source),
-            ).fetchone()
+                if scan_channel is not None:
+                    row = conn.execute(
+                        """
+                        SELECT item_name, price, volume, COALESCE(bid_volume, 0) AS bid_volume,
+                               COALESCE(bid_price, 0) AS bid_price,
+                               source, captured_at, scan_channel
+                        FROM price_snapshots
+                        WHERE item_name = ? AND scan_channel = ?
+                        ORDER BY id DESC
+                        LIMIT 1
+                        """,
+                        (item_name, scan_channel),
+                    ).fetchone()
+                else:
+                    row = conn.execute(
+                        """
+                        SELECT item_name, price, volume, COALESCE(bid_volume, 0) AS bid_volume,
+                               COALESCE(bid_price, 0) AS bid_price,
+                               source, captured_at, scan_channel
+                        FROM price_snapshots
+                        WHERE item_name = ?
+                        ORDER BY id DESC
+                        LIMIT 1
+                        """,
+                        (item_name,),
+                    ).fetchone()
         return row
 
     def count_watch_items(self) -> int:

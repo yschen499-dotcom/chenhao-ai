@@ -1,4 +1,7 @@
 .env.dingtalk_agent
+.venv/
 __pycache__/
 *.pyc
 data/
+.cursor/
+.vscode/

@@ -35,13 +35,30 @@ DINGTALK_STREAM_CLIENT_ID=你的AppKey
 DINGTALK_STREAM_CLIENT_SECRET=你的AppSecret
 AGENT_STEAMDT_API_KEY=你的SteamDT开放平台API_KEY
 
+# 大模型（深度解析、早报/周报/月报）；OpenAI 兼容接口
+#
+# 【推荐】通义千问（阿里云百炼 Model Studio → API-KEY）
+# 控制台：https://bailian.console.aliyun.com/  创建 API Key 后填入下方。
+AGENT_LLM_API_KEY=你的DashScope_API_KEY
+AGENT_LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+AGENT_LLM_MODEL=qwen-plus
+# 其它可选模型示例：qwen-turbo、qwen-max、qwen-flash（以控制台实际可用名为准）
+# 国际地域可把 BASE_URL 换成文档中的新加坡/弗吉尼亚等 compatible-mode 地址。
+#
+# 若用 OpenAI 官方：
+# AGENT_LLM_BASE_URL=https://api.openai.com/v1
+# AGENT_LLM_MODEL=gpt-4o-mini
+# AGENT_LLM_TIMEOUT_SECONDS=120
+
 # 可选
+# AGENT_LLM_TIMEOUT_SECONDS=120
 # DINGTALK_AGENT_LOG_LEVEL=DEBUG
 # AGENT_DB_PATH=data/app.db
-# AGENT_SCAN_INTERVAL_SECONDS=60
+# AGENT_SCAN_INTERVAL_SECONDS=300
 # AGENT_MAX_REPLY_CHARS=3000
 # AGENT_STEAMDT_PRICE_PLATFORM=BUFF
 # AGENT_STEAMDT_REQUEST_TIMEOUT_SECONDS=15
+# AGENT_ALERT_THRESHOLD_PERCENT=3
 ```
 
 你也可以使用 `DINGTALK_APP_KEY` 和 `DINGTALK_APP_SECRET` 这组变量名。
@@ -58,20 +75,20 @@ python3 scripts/init_db.py
 python3 dingtalk_agent.py
 ```
 
-## 内部测试命令
+云服务器部署步骤见 **[DEPLOY.md](DEPLOY.md)**（**Windows 见第三节**；Linux 见第二节）。Windows 可用 **`scripts/run_agent.bat`** 前台启动。
 
-- `帮助`
-- `状态`
-- `监控列表`
-- `添加监控 AK-47 | 红线 (久经沙场)`
-- `删除监控 AK-47 | 红线 (久经沙场)`
-- `立即扫描`
-- `测试提醒`
+## 命令列表（与机器人内发送「帮助」一致）
+
+**正文唯一来源**：`app/commands.py` 顶部的 **`HELP_TEXT`**（`help_text()` 原样返回）。
+
+`帮助` / `命令` / `功能`：`状态`、`监控列表`、`添加监控`、`删除监控`、`深度解析`、`大盘`、`测试早报`、`测试周报`、`测试月报`、`测试提醒`（已移除「立即扫描」，改为后台定时扫描）。
+
+示例：`添加监控 AK-47 | 红线 (久经沙场)` · `深度解析 AK-47 | 红线 (久经沙场)` · `删除监控 AK-47 | 红线 (久经沙场)`
 
 ## 说明
 
-- 当前版本仍然是内部测试版，不包含对外售卖逻辑。
-- `立即扫描` 已经会调用 SteamDT 接口抓取监控饰品价格，并把结果写入本地 SQLite。
-- 当前扫描结果会优先展示 BUFF、悠悠、C5 的在售价与求购价。
-- 第一次扫描某个中文饰品名时，会尝试从 SteamDT 基础信息接口刷新名称映射缓存。
-- 当前还没有接入自动异动判断和定时后台轮询，重点是先跑通真实数据采集链路。
+- 当前版本为内部自用，不包含对外售卖逻辑。
+- 后台扫描由 `AGENT_ENABLE_BACKGROUND_SCAN` 与 `AGENT_SCAN_INTERVAL_SECONDS` 控制，抓取监控饰品价格并写入 SQLite；面板展示 BUFF、悠悠、C5 的在售价与求购价。
+- 主动预警：在售价、求购价、在售量、求购量任一相对上次波动幅度 ≥ `AGENT_ALERT_THRESHOLD_PERCENT`（默认 3%）即推送。
+- 首次扫描某中文饰品名时，会尝试从 SteamDT 基础信息接口刷新名称映射缓存。
+- 定时早报/周报/月报需配置 Webhook、LLM 与调度相关环境变量，详见 `app/config.py` 与 `app/commands.py` 的 `HELP_TEXT`。

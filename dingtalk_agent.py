@@ -6,7 +6,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, Tuple
 
 import dingtalk_stream
 import requests
@@ -17,10 +17,14 @@ from app.config import (
     get_log_level,
     get_max_reply_chars,
     get_scan_interval_seconds,
-    is_auto_scan_enabled,
+    is_background_scan_enabled,
 )
+from app.market_overview import run_market_overview
 from app.monitor import MonitorService
+from app.deep_analysis import run_deep_analysis
 from app.router import CommandRouter
+from app.llm import warm_llm_connection
+from app.scheduler import start_scheduler
 from app.storage import Storage
 
 
@@ -55,11 +59,26 @@ def _load_env():
         pass
 
 
-def _truncate(s: str) -> str:
-    max_reply_chars = get_max_reply_chars()
-    if len(s) <= max_reply_chars:
-        return s
-    return s[: max_reply_chars - 20] + "\n...(truncated)..."
+_REPLY_FOOTER = "\n\n💡 发送「帮助」获取更多功能"
+
+
+def _finalize_reply(body: str) -> str:
+    """
+    所有会话回复统一追加尾注，避免用户不知道可发「帮助」。
+    总长度受 AGENT_MAX_REPLY_CHARS 限制，尾注不被截断。
+    """
+    max_total = get_max_reply_chars()
+    text = (body or "").rstrip()
+    if not text:
+        return _REPLY_FOOTER.strip()
+    if len(text) + len(_REPLY_FOOTER) <= max_total:
+        return text + _REPLY_FOOTER
+    suffix = "\n...(truncated)..."
+    room = max_total - len(_REPLY_FOOTER) - len(suffix)
+    if room < 1:
+        return _REPLY_FOOTER.strip()[:max_total]
+    head = text[:room]
+    return head + suffix + _REPLY_FOOTER
 
 def _preview_json(data, limit: int = 800) -> str:
     try:
@@ -69,6 +88,25 @@ def _preview_json(data, limit: int = 800) -> str:
     if len(text) <= limit:
         return text
     return text[: limit - 20] + "...(truncated)..."
+
+
+# Stream 每次重连会 new 新的 ChatbotHandler，后台扫描线程不能长期捕获「第一个」 handler，
+# 否则 reply_text 仍指向旧实例，会话 Webhook 失效，钉钉收不到主动预警。
+_bot_session_lock = threading.Lock()
+_bot_session_handler: Optional[Any] = None
+_bot_session_incoming = None
+
+
+def _set_bot_session(handler: Any, incoming: Any) -> None:
+    global _bot_session_handler, _bot_session_incoming
+    with _bot_session_lock:
+        _bot_session_handler = handler
+        _bot_session_incoming = incoming
+
+
+def _get_bot_session() -> Tuple[Optional[Any], Any]:
+    with _bot_session_lock:
+        return _bot_session_handler, _bot_session_incoming
 
 
 class InternalTestBotHandler(dingtalk_stream.ChatbotHandler):
@@ -91,24 +129,45 @@ class InternalTestBotHandler(dingtalk_stream.ChatbotHandler):
             )
             incoming = dingtalk_stream.ChatbotMessage.from_dict(callback.data)
             self._latest_incoming = incoming
+            _set_bot_session(self, incoming)
             sender_staff_id = getattr(incoming, "sender_staff_id", "") or ""
             if sender_staff_id:
                 self.storage.write_state("admin_sender_staff_id", sender_staff_id)
             text = ""
             if getattr(incoming, "text", None) and getattr(incoming.text, "content", None):
-                text = incoming.text.content
+                text = (incoming.text.content or "").strip()
 
-            logging.info(
-                "Incoming chatbot text=%r conversation_type=%r sender=%r",
-                text,
-                getattr(incoming, "conversation_type", None),
-                getattr(incoming, "sender_staff_id", None),
-            )
+            if not text:
+                logging.info(
+                    "Incoming message has empty text (e.g. image/card); conversation_type=%r sender=%r",
+                    getattr(incoming, "conversation_type", None),
+                    getattr(incoming, "sender_staff_id", None),
+                )
+            else:
+                logging.info(
+                    "Incoming chatbot text=%r conversation_type=%r sender=%r",
+                    text,
+                    getattr(incoming, "conversation_type", None),
+                    getattr(incoming, "sender_staff_id", None),
+                )
 
-            reply = self.router.handle_text(text)
+            try:
+                reply = self.router.handle_text(text)
+            except Exception as e:
+                logging.exception("router.handle_text 失败")
+                reply = f"命令处理异常：{e}"
+
             if reply is not None:
-                logging.info("Replying with %d chars", len(reply))
-                self.reply_text(_truncate(reply), incoming)
+                out = _finalize_reply(reply)
+                logging.info("Replying with %d chars (incl. footer)", len(out))
+                send_result = self.reply_text(out, incoming)
+                if send_result is None:
+                    logging.error(
+                        "reply_text failed (session webhook). See dingtalk_stream ERROR above; "
+                        "check robot permissions and corporate network to oapi.dingtalk.com."
+                    )
+                else:
+                    logging.info("reply_text sent OK.")
             else:
                 logging.info("No reply generated for incoming text.")
         except Exception:
@@ -164,14 +223,21 @@ def _loop_exception_handler(loop: asyncio.AbstractEventLoop, context: dict):
     loop.default_exception_handler(context)
 
 
+_background_scan_thread_started = False
+
+
 def _start_background_scan_loop(
-    handler: InternalTestBotHandler,
     monitor: MonitorService,
     storage: Storage,
 ) -> None:
-    if not is_auto_scan_enabled():
-        logging.info("自动扫描未开启，当前只支持手动“立即扫描”。")
+    """只应启动一次；会话上下文见 _get_bot_session（随每条消息更新）。"""
+    global _background_scan_thread_started
+    if not is_background_scan_enabled():
+        logging.info("自动扫描未开启（AGENT_ENABLE_BACKGROUND_SCAN=false），无后台轮询与预警推送。")
         return
+    if _background_scan_thread_started:
+        return
+    _background_scan_thread_started = True
 
     interval = get_scan_interval_seconds()
 
@@ -179,8 +245,7 @@ def _start_background_scan_loop(
         logging.info("后台自动扫描已启动，间隔 %ss。", interval)
         while True:
             try:
-                result = monitor.run_scan()
-                latest_incoming = handler.latest_incoming()
+                result = monitor.run_scan(scan_channel="background")
                 for alert in result.triggered_alerts:
                     inserted = record_triggered_alert(
                         storage=storage,
@@ -191,11 +256,20 @@ def _start_background_scan_loop(
                     )
                     if not inserted:
                         continue
-                    if latest_incoming is None:
-                        logging.info("命中提醒但尚无管理员会话上下文，跳过主动推送。")
+                    reply_handler, latest_incoming = _get_bot_session()
+                    if latest_incoming is None or reply_handler is None:
+                        logging.info("命中提醒但尚无会话上下文（请先在单聊或群里 @ 机器人发一条消息），跳过主动推送。")
                         continue
-                    logging.info("主动推送异动提醒：%s", alert.alert_key)
-                    handler.reply_text(_truncate(alert.message), latest_incoming)
+                    send_result = reply_handler.reply_text(
+                        _finalize_reply(alert.message), latest_incoming
+                    )
+                    if send_result is None:
+                        logging.error(
+                            "主动推送 reply_text 失败：%s（检查会话 Webhook、机器人权限与网络）",
+                            alert.alert_key,
+                        )
+                    else:
+                        logging.info("主动推送异动提醒已送达：%s", alert.alert_key)
             except Exception:
                 logging.exception("后台自动扫描失败。")
             time.sleep(interval)
@@ -224,6 +298,7 @@ def main():
     logging.raiseExceptions = False
     logging.getLogger("dingtalk_stream").setLevel(getattr(logging, log_level, logging.INFO))
     logging.info("Starting DingTalk Stream bot...")
+    logging.info("Agent root: %s (cwd=%s)", BASE_DIR, os.getcwd())
     logging.info("ENV file: %s", ENV_PATH)
     logging.info("Log level: %s", log_level)
     _validate_stream_credentials(client_id, client_secret)
@@ -234,8 +309,20 @@ def main():
 
     storage = Storage()
     monitor = MonitorService(storage)
-    router = CommandRouter(storage=storage, scan_callback=monitor.scan_once)
-    logging.info("内部测试命令已就绪：帮助/状态/监控列表/添加监控/删除监控/立即扫描/测试提醒")
+    router = CommandRouter(
+        storage=storage,
+        market_overview_callback=lambda: run_market_overview(storage, monitor.collector),
+        collector=monitor.collector,
+        deep_analysis_callback=lambda name: run_deep_analysis(name, storage, monitor.collector),
+    )
+    try:
+        start_scheduler(storage, monitor)
+    except Exception:
+        logging.exception("定时任务启动失败（可检查 APScheduler / tzdata 是否已安装）。")
+    warm_llm_connection()
+    logging.info(
+        "命令已就绪：帮助/状态/监控列表/添加监控/删除监控/深度解析/大盘/测试早报周报月报/测试提醒"
+    )
 
     while True:
         try:
@@ -253,7 +340,7 @@ def main():
             client.register_callback_handler(delegate_topic, handler)
             logging.info("Registered callback handlers: %s, %s", chatbot_topic, delegate_topic)
             logging.info("Waiting for direct-chat messages or @mentions in group chats.")
-            _start_background_scan_loop(handler, monitor, storage)
+            _start_background_scan_loop(monitor, storage)
             client.start_forever()
         except KeyboardInterrupt:
             logging.info("Stream bot stopped by user.")

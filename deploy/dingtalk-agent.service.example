@@ -1,0 +1,22 @@
+# 示例：复制为 /etc/systemd/system/dingtalk-agent.service
+# 修改 User、WorkingDirectory、ExecStart 路径后：
+#   sudo systemctl daemon-reload && sudo systemctl enable --now dingtalk-agent
+
+[Unit]
+Description=DingTalk CS2 盯盘机器人
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/dingpan-bot
+EnvironmentFile=-/opt/dingpan-bot/.env.dingtalk_agent
+ExecStart=/opt/dingpan-bot/.venv/bin/python /opt/dingpan-bot/dingtalk_agent.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

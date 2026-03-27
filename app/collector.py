@@ -2,7 +2,7 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import requests
 
@@ -14,6 +14,16 @@ from .config import (
     get_steamdt_price_platform,
     get_steamdt_request_timeout_seconds,
 )
+
+
+def _normalize_steamdt_platform(raw: str) -> str:
+    """将接口里的平台名统一到内部大写代码（与 monitor 里 YOUPIN/BUFF/C5 一致）。"""
+    t = (raw or "").strip()
+    if not t:
+        return ""
+    if t in ("悠悠", "悠悠有品"):
+        return "YOUPIN"
+    return t.upper()
 
 
 @dataclass
@@ -124,26 +134,32 @@ class SteamDTCollector:
         if not rows:
             raise RuntimeError(f"SteamDT 没有返回饰品价格：{item_name}")
 
-        platform_prices: List[PlatformPrice] = []
+        # API may return multiple rows per platform; keep one per platform so each scan
+        # inserts at most one snapshot per source. Otherwise OFFSET 1 "previous" points
+        # at another row from the same scan (same price) and 较上次 always shows 0%.
+        by_platform: Dict[str, PlatformPrice] = {}
         for row in rows:
-            platform = (row.get("platform") or "").upper()
+            platform = _normalize_steamdt_platform(row.get("platform") or "")
             if not platform:
                 continue
-            platform_prices.append(
-                PlatformPrice(
-                    platform=platform,
-                    sell_price=float(row.get("sellPrice") or 0),
-                    sell_count=int(row.get("sellCount") or 0),
-                    bidding_price=float(row.get("biddingPrice") or 0),
-                    bidding_count=int(row.get("biddingCount") or 0),
-                    update_time=int(row.get("updateTime") or 0),
-                )
+            pp = PlatformPrice(
+                platform=platform,
+                sell_price=float(row.get("sellPrice") or 0),
+                sell_count=int(row.get("sellCount") or 0),
+                bidding_price=float(row.get("biddingPrice") or 0),
+                bidding_count=int(row.get("biddingCount") or 0),
+                update_time=int(row.get("updateTime") or 0),
             )
+            prev: Optional[PlatformPrice] = by_platform.get(platform)
+            if prev is None or pp.update_time >= prev.update_time:
+                by_platform[platform] = pp
+
+        platform_prices = list(by_platform.values())
 
         if not platform_prices:
             raise RuntimeError(f"SteamDT 返回了空的平台价格列表：{item_name}")
 
-        priority = ["BUFF", "YOUPIN", "C5", "STEAM", "HALOSKINS"]
+        priority = ["YOUPIN", "BUFF", "C5", "STEAM", "HALOSKINS"]
         priority_index = {name: idx for idx, name in enumerate(priority)}
         platform_prices.sort(key=lambda row: priority_index.get(row.platform, 999))
 
