@@ -98,6 +98,9 @@ class MonitorService:
         alerts: list[TriggeredAlert] = []
 
         for platform_row in row.platform_prices:
+            # 主动预警仅针对悠悠（YOUPIN）；其它平台仍采集与展示，但不触发推送。
+            if platform_row.platform.upper() != "YOUPIN":
+                continue
             latest = self.storage.latest_price_snapshot(
                 row.item_name, platform_row.platform, scan_channel=scan_channel
             )
@@ -162,6 +165,8 @@ class MonitorService:
         if not watch_items:
             self.storage.write_state("last_scan_time", now)
             self.storage.write_state("last_error", "无")
+            if scan_channel == "background":
+                logging.info("[后台扫描] %s 无启用中的监控标的，已跳过", now)
             return ScanResult(
                 summary_text="当前没有启用中的监控饰品，请先使用“添加监控 饰品名称”。",
                 triggered_alerts=[],
@@ -229,4 +234,16 @@ class MonitorService:
             for item_name, error in failed_rows[:3]:
                 lines.append(f"  • {item_name} -> {error}")
 
-        return ScanResult(summary_text="\n".join(lines), triggered_alerts=triggered_alerts)
+        summary_text = "\n".join(lines)
+        if scan_channel == "background":
+            logging.info(
+                "[后台扫描] %s 标的=%d 成功=%d 失败=%d 本轮预警=%d 条（不推送到聊天，仅日志+异动时推送）",
+                now,
+                len(watch_items),
+                len(success_rows),
+                len(failed_rows),
+                len(triggered_alerts),
+            )
+            logging.debug("后台扫描全文:\n%s", summary_text)
+
+        return ScanResult(summary_text=summary_text, triggered_alerts=triggered_alerts)

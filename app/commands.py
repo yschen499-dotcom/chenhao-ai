@@ -46,7 +46,7 @@ HELP_TEXT = (
     "\n"
     "说明：\n"
     "- 群聊请先 @机器人 再发命令；单聊直接发文字即可。\n"
-    "- 自选由后台自动扫描（默认约每 5 分钟）；在售价/求购价/在售量/求购量较上次波动 ≥3% 可能推送预警。\n"
+    "- 自选由后台自动扫描（间隔见「状态」）；**不会在聊天里推送每次扫描结果**；在售价/求购价/在售量/求购量较上次波动 ≥3% 才可能推送预警。\n"
     "- 深度解析/测试早报周报月报需配置大模型（如通义 AGENT_LLM_*）；定时推送需 Webhook。详见 README。"
 )
 
@@ -64,13 +64,16 @@ def status_text(storage: Storage) -> str:
     recent_alerts = storage.recent_alerts(limit=3)
 
     wh = get_dingtalk_webhook_url()
+    interval = get_scan_interval_seconds()
+    every = f"{interval // 60} 分钟" if interval >= 60 else f"{interval} 秒"
     lines = [
         "当前运行状态：",
         f"- 数据库: {get_db_path()}",
-        f"- 扫描间隔: {get_scan_interval_seconds()}s",
+        f"- 后台扫描间隔: {interval}s（约每 {every} 一轮）",
+        "- 说明：后台扫描**不会**把每次结果发到群里；只写库、打日志，有异动才推送。",
         f"- 定时报告 Webhook: {'已配置' if wh else '未配置（早报/周报/月报等无法推送）'}",
         f"- 监控标的数: {watch_count}",
-        f"- 最近扫描: {last_scan}",
+        f"- 最近扫描时间: {last_scan}",
         f"- 最近成功抓价: {last_success}",
         f"- 最近错误: {last_error}",
     ]

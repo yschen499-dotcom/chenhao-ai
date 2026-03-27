@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import warnings
 import sys
 import threading
 import time
@@ -304,8 +305,11 @@ def main():
     _validate_stream_credentials(client_id, client_secret)
 
     # Windows fix: avoid ProactorEventLoop + websockets instability (InvalidStateError/EOFError).
+    # Python 3.14+ deprecates WindowsSelectorEventLoopPolicy; still needed until stream SDK 验证 Proactor 稳定。
     if sys.platform.startswith("win"):
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
     storage = Storage()
     monitor = MonitorService(storage)
